@@ -85,9 +85,49 @@ for name, (y0, y1) in rows.items():
         cell = key_out(sheet_src.crop((x0, y0, x1, y1)), MAGENTA, 200)
         made[f'{name}{i}'] = finish(cell, i, f'{name}{i}')
 
+# Plantilla 2 (hielo, roca, fantasma): las criaturas casi se tocan entre filas, así que en vez de
+# cortar por cuadrícula se buscan las manchas de color y se asigna cada una a su fila y columna.
+def blobs(im, bg, tol, step=4):
+    """Devuelve los rectángulos de las figuras (sobre una versión reducida, rápida)."""
+    w, h = im.width // step, im.height // step
+    small = im.convert('RGB').resize((w, h), Image.NEAREST).load()
+    solid = [[abs(small[x, y][0] - bg[0]) + abs(small[x, y][1] - bg[1]) + abs(small[x, y][2] - bg[2]) >= tol
+              for x in range(w)] for y in range(h)]
+    seen, out = [[False] * w for _ in range(h)], []
+    for y in range(h):
+        for x in range(w):
+            if not solid[y][x] or seen[y][x]:
+                continue
+            stack, pts = [(x, y)], []
+            seen[y][x] = True
+            while stack:
+                cx, cy = stack.pop(); pts.append((cx, cy))
+                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1), (cx + 1, cy + 1), (cx - 1, cy - 1), (cx + 1, cy - 1), (cx - 1, cy + 1)):
+                    if 0 <= nx < w and 0 <= ny < h and solid[ny][nx] and not seen[ny][nx]:
+                        seen[ny][nx] = True; stack.append((nx, ny))
+            if len(pts) > 40:
+                xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                out.append((min(xs) * step, min(ys) * step, (max(xs) + 1) * step, (max(ys) + 1) * step, len(pts)))
+    return out
+
+sheet2 = Image.open(ROOT / 'plantilla2.jpg').convert('RGBA')
+cols2 = [(0, 600), (600, 1250), (1250, 2000)]
+rows2 = [('ice', 0, 500), ('rock', 500, 1010), ('ghost', 1010, 1493)]
+found = blobs(sheet2, MAGENTA, 200)
+for name, y0, y1 in rows2:
+    for i, (x0, x1) in enumerate(cols2, start=1):
+        # todas las manchas cuyo centro cae en la celda (incluye piezas sueltas como copos o cadenas)
+        mine = [b for b in found if x0 <= (b[0] + b[2]) / 2 < x1 and y0 <= (b[1] + b[3]) / 2 < y1]
+        big = max(mine, key=lambda b: b[4])
+        keep = [b for b in mine if b[4] > big[4] * 0.02]
+        box = (min(b[0] for b in keep) - 6, min(b[1] for b in keep) - 6, max(b[2] for b in keep) + 6, max(b[3] for b in keep) + 6)
+        cell = key_out(sheet2.crop(box), MAGENTA, 200)
+        made[f'{name}{i}'] = finish(cell, i, f'{name}{i}')
+
 # hoja de vista previa ampliada x4
-order = ['water1', 'water2', 'water3', 'fire1', 'fire2', 'fire3', 'plant1', 'plant2', 'plant3', 'elec2', 'elec3']
-sheet = Image.new('RGBA', (3 * 150, 4 * 150), (43, 79, 54, 255))
+order = ['water1', 'water2', 'water3', 'fire1', 'fire2', 'fire3', 'plant1', 'plant2', 'plant3', 'elec2', 'elec3',
+         'ice1', 'ice2', 'ice3', 'rock1', 'rock2', 'rock3', 'ghost1', 'ghost2', 'ghost3']
+sheet = Image.new('RGBA', (3 * 150, 7 * 150), (43, 79, 54, 255))
 for k, key in enumerate(order):
     im = made[key]
     big = im.resize((im.width * 4 // RS, im.height * 4 // RS), Image.NEAREST)

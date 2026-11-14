@@ -44,7 +44,14 @@
   .card .d { color:var(--dim); font-size:12px; font-weight:400; margin-top:3px; line-height:1.35; }
   .badge { display:inline-block; font-size:10px; padding:2px 6px; border-radius:6px; margin-left:4px; color:#141821; vertical-align:middle; }
   .b-water{background:var(--water)} .b-fire{background:var(--fire)} .b-plant{background:var(--plant)}
-  .b-elec{background:var(--elec)} .b-normal{background:#c2c3cc} .b-pas{background:#94a0b8} .b-new{background:var(--gold)}
+  .b-elec{background:var(--elec)} .b-normal{background:#c2c3cc}
+  .b-ice{background:#a5f0ff} .b-rock{background:#b08d57} .b-ghost{background:#b48ce0}
+  .vitrina.ice { border-color:#a5f0ff; background:radial-gradient(ellipse at 50% 85%, rgba(165,240,255,.25), rgba(14,18,30,.92) 65%); }
+  .vitrina.rock { border-color:#b08d57; background:radial-gradient(ellipse at 50% 85%, rgba(176,141,87,.28), rgba(14,18,30,.92) 65%); }
+  .vitrina.ghost { border-color:#b48ce0; background:radial-gradient(ellipse at 50% 85%, rgba(180,140,224,.28), rgba(14,18,30,.92) 65%); }
+  #dex { justify-content:flex-start; }
+  #dex > :first-child { margin-top:auto; }
+  #dex > :last-child { margin-bottom:auto; } .b-pas{background:#94a0b8} .b-new{background:var(--gold)}
   .row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
   .btn { padding:12px 20px; border-radius:12px; border:2px solid var(--line); background:var(--panel); color:var(--text); font:inherit; font-size:15px; }
   .btn.main { background:var(--gold); color:#141821; border-color:var(--gold); }
@@ -201,7 +208,10 @@
   <label class="toggle"><input type="checkbox" id="optMusic"> Música</label>
   <label class="toggle"><input type="checkbox" id="lowPower"> Modo ahorro (30 FPS, menos calor)</label>
   <div class="chart">Cómo jugar: mueve con el dedo, tu criatura ataca sola.<br><br>
-    Agua › Fuego › Planta › Agua<br>Eléctrico › Agua · Planta › Eléctrico<br>Daño x2 al tipo débil · x0.5 al resistente o igual</div>
+    Agua › Fuego › Planta › Agua<br>Eléctrico › Agua · Planta › Eléctrico<br>
+    Hielo › Planta · Fuego › Hielo<br>Roca › Fuego y Hielo · Agua y Planta › Roca<br>
+    Fantasma › Fantasma · Normal no daña bien a Roca ni Fantasma<br>
+    Daño x2 al tipo débil · x0.5 al resistente o igual</div>
   <button class="btn" id="setBack">Volver</button>
 </div>
 

@@ -202,6 +202,11 @@ const ROWS = {
     '.......', '.gGGGg.', 'gGwwwGg', 'gGwwwGg', '.gGGGg.', '...g...', '..ggg..',
   ]],
   saw: ['.s.s.', 'sSSSs', '.SwS.', 'sSSSs', '.s.s.'],
+  icicle: ['.cw.', 'cCCw', 'sCCc', '.sc.'],
+  snowflake: ['w.c.w', '.cwc.', 'cwwwc', '.cwc.', 'w.c.w'],
+  pebble: ['.ooo.', 'oSSSo', 'oShSo', 'oSSso', '.ooo.'],
+  boulder: ['..ooooo..', '.oSSSSSo.', 'oSShSSSso', 'oSSSSSSso', 'oSSSSsSso', 'oSSSSSSso', 'osSSSSSso', '.ossssso.', '..ooooo..'],
+  wispP: ['..p..', '.pPp.', 'pPwPp', 'pPPPp', '.pPp.', '..p..'],
   anvil: ['sssssss', '.SSSSSs', '..SSS..', '.SSSSS.', 'sssssss'],
   ghost: [[
     '....oooo....', '..ooWWWWoo..', '.oWWWWWWWWo.', '.oWkkWWkkWo.', '.oWkkWWkkWo.', 'oWWWWWWWWWWo',
@@ -488,7 +493,7 @@ function buildSprites() {
   SPR.mush = sprite(anim('mush'), P({ o: '#173322', A: '#38b764', h: '#a7f070' }));
   SPR.bat = sprite(ROWS.bat, P({ o: '#1a1424', A: '#6b4a8a', k: '#ffcd75' }));
   SPR.spark = sprite(ROWS.spark, P({ o: '#3a2a10', Y: '#ffcd75', y: '#fff3b0', z: '#73eff7' }));
-  SPR.rock = sprite(anim('rock'), P({ o: '#2a2a33', A: '#8b8d99', h: '#c2c3cc', s: '#5f616d' }));
+  SPR.stone = sprite(anim('rock'), P({ o: '#2a2a33', A: '#8b8d99', h: '#c2c3cc', s: '#5f616d' }));
   SPR.bolt = sprite([ROWS.bolt], PAL_PLAYER.water);
   SPR.bubble = sprite([ROWS.bubble], PAL_PLAYER.water);
   SPR.fireball = sprite([ROWS.fireball], PAL_PLAYER.fire);
@@ -497,6 +502,13 @@ function buildSprites() {
   SPR.crown = sprite([ROWS.crown], P({ y: '#ffcd75', r: '#b13e53' }));
   SPR.phoenix = sprite([ROWS.phoenix], PAL_PLAYER.fire);
   SPR.chomper = sprite(ROWS.chomper, P({ g: '#1f5c38', G: '#5ac46a', w: '#f4f4f4', r: '#b13e53' }));
+  SPR.icicle = sprite([ROWS.icicle], P({ c: '#a5f0ff', C: '#73eff7', w: '#f4f4f4', s: '#41a6f6' }));
+  SPR.snowflake = sprite([ROWS.snowflake], P({ w: '#f4f4f4', c: '#a5f0ff' }));
+  SPR.pebble = sprite([ROWS.pebble], P({ o: '#2a2a33', S: '#b08d57', s: '#8a6a3e', h: '#d8b880' }));
+  SPR.boulder = sprite([ROWS.boulder], P({ o: '#2a2a33', S: '#b08d57', s: '#8a6a3e', h: '#d8b880' }));
+  SPR.wispP = sprite([ROWS.wispP], P({ p: '#6b4a8a', P: '#b48ce0', w: '#f4f4f4' }));
+  // respaldo por si el arte de los tipos nuevos no carga
+  for (const t of ['ice', 'rock', 'ghost']) for (const s of ['', '2', '3']) SPR[t + s] = SPR.slimeW;
   SPR.saw = sprite([ROWS.saw], P({ s: '#5f616d', S: '#c2c3cc', w: '#f4f4f4' }));
   SPR.anvil = sprite([ROWS.anvil], P({ s: '#2a2a33', S: '#8b8d99' }));
   // enemigos de los mapas nuevos (variantes de color y el espectro)
@@ -506,7 +518,7 @@ function buildSprites() {
   SPR.batAsh = sprite(ROWS.bat, P({ o: '#1a1414', A: '#5f616d', k: '#ef7d57' }));
   SPR.slimeMud = sprite(anim('slime'), P({ o: '#1f1a2e', A: '#6b4a8a', h: '#a7f070', s: '#4a3266' }));
   SPR.batFly = sprite(ROWS.bat, P({ o: '#143d28', A: '#38975a', k: '#ff8fa3' }));
-  SPR.ghost = sprite(ROWS.ghost, P({ o: '#3a3a5a', W: '#d8dcf0', k: '#1a1c2c' }));
+  SPR.specter = sprite(ROWS.ghost, P({ o: '#3a3a5a', W: '#d8dcf0', k: '#1a1c2c' }));
   SPR.chest = sprite([ROWS.chest], P({ o: '#5d3a1a', Y: '#ffcd75', y: '#fff3b0', w: '#f4f4f4' }));
   SPR.tuft = sprite([ROWS.tuft], P({ g: '#1f4a2c', G: '#3b7d4a', l: '#5ac46a' }));
   SPR.flower = sprite([ROWS.flower], P({ y: '#ffcd75', w: '#f4f4f4', g: '#3b7d4a' }));
@@ -574,12 +586,20 @@ function buildGround(map) {
 }
 
 // ---------- Datos del juego ----------
-const TYPE_NAME = { water: 'AGUA', fire: 'FUEGO', plant: 'PLANTA', elec: 'ELÉC', normal: 'NORMAL' };
+const TYPE_NAME = { water: 'AGUA', fire: 'FUEGO', plant: 'PLANTA', elec: 'ELÉC', ice: 'HIELO', rock: 'ROCA', ghost: 'FANTASMA', normal: 'NORMAL' };
+// Tabla de tipos: ataque -> defensa. 2 = súper eficaz, 0.5 = poco eficaz.
+const SUPER = {
+  water: ['fire', 'rock'], fire: ['plant', 'ice'], plant: ['water', 'elec', 'rock'], elec: ['water'],
+  ice: ['plant'], rock: ['fire', 'ice'], ghost: ['ghost'],
+};
+const WEAK = {
+  water: ['plant'], fire: ['water', 'rock'], plant: ['fire'], elec: ['plant', 'rock'],
+  ice: ['water', 'fire'], rock: [], ghost: [], normal: ['rock', 'ghost'],
+};
 function eff(a, d) {
-  if ((a === 'water' && d === 'fire') || (a === 'fire' && d === 'plant') || (a === 'plant' && d === 'water') ||
-      (a === 'elec' && d === 'water') || (a === 'plant' && d === 'elec')) return 2;
-  if ((a === 'fire' && d === 'water') || (a === 'plant' && d === 'fire') || (a === 'water' && d === 'plant') || (a === 'elec' && d === 'plant')) return 0.5;
-  if (a === d && (a === 'water' || a === 'fire' || a === 'plant' || a === 'elec')) return 0.5;
+  if (SUPER[a] && SUPER[a].indexOf(d) !== -1) return 2;
+  if (WEAK[a] && WEAK[a].indexOf(d) !== -1) return 0.5;
+  if (a === d && a !== 'normal' && a !== 'ghost') return 0.5;
   return 1;
 }
 
@@ -588,6 +608,9 @@ const STARTERS = {
   fire: { names: ['Chispín', 'Brasón', 'Fogarón'], move: 'ascuas', desc: 'Frágil pero explosivo. Bolas de fuego con área.' },
   plant: { names: ['Brotín', 'Arbustín', 'Frondón'], move: 'hojas', desc: 'Resistente. Hojas que giran a su alrededor.' },
   elec: { names: ['Voltín', 'Dinamín', 'Tormentón'], move: 'rayo', desc: 'Veloz. Rayos que caen sobre enemigos al azar.' },
+  ice: { names: ['Copín', 'Escarcho', 'Ventiscola'], move: 'carambano', desc: 'Congela y frena a los enemigos con hielo.' },
+  rock: { names: ['Guijarrín', 'Tortuguijo', 'Montañón'], move: 'pedrada', desc: 'Muy resistente y lento. Rocas que empujan fuerte.' },
+  ghost: { names: ['Farolín', 'Embozado', 'Mascarón'], move: 'llamaFatua', desc: 'Frágil pero escurridizo. Llamas que persiguen.' },
 };
 // Evoluciones: nivel en que ocurren, y radio de golpe según el tamaño del sprite
 const EVO_LEVELS = [16, 32];
@@ -649,7 +672,7 @@ const MOVES = {
         forNear(lx, ly, 6, (e) => {
           if (e.leafT > T) return;
           const dx = e.x - lx, dy = e.y - ly;
-          if (dx * dx + dy * dy < (e.r + 4) * (e.r + 4)) { e.leafT = T + 0.45; hurt(e, dmg, 'plant', Math.cos(a) * 40, Math.sin(a) * 40); }
+          if (dx * dx + dy * dy < (e.r + 4) * (e.r + 4)) { e.leafT = T + 0.45; if (this.slow) e.slowT = T + 0.6; hurt(e, dmg, this.type, Math.cos(a) * 40, Math.sin(a) * 40); }
         });
       }
     } },
@@ -865,6 +888,162 @@ Object.assign(MOVES, {
     } },
 });
 
+// Hielo, roca y fantasma: 5 ataques cada uno
+Object.assign(MOVES, {
+  carambano: { name: 'Carámbano', type: 'ice', desc: 'Fragmento de hielo que atraviesa y frena.',
+    cd: (l) => 1.0 - 0.06 * l,
+    fire(m) {
+      const t = nearest(player.x, player.y, 150); if (!t) return false;
+      const n = 1 + (m.lvl >= 4) + (m.lvl >= 7), a0 = Math.atan2(t.y - player.y, t.x - player.x);
+      for (let i = 0; i < n; i++) {
+        const a = a0 + (i - (n - 1) / 2) * 0.2;
+        const b = addBullet(player.x, player.y, Math.cos(a) * 170, Math.sin(a) * 170, 9 + 3 * m.lvl, 'ice', 1 + (m.lvl >> 2), 0.9, SPR.icicle, 3, 0);
+        b.slow = 0.8;
+      }
+    } },
+  ventisca: { name: 'Ventisca', type: 'ice', desc: 'Viento helado a tu alrededor que frena y daña.',
+    cd: () => 0.5,
+    radius: (l) => 26 + 3 * l,
+    fire(m) {
+      const R = this.radius(m.lvl);
+      forNear(player.x, player.y, R, (e) => {
+        const dx = e.x - player.x, dy = e.y - player.y;
+        if (dx * dx + dy * dy < (R + e.r) * (R + e.r)) { e.slowT = T + 0.6; hurt(e, 2 + 1.2 * m.lvl, 'ice', 0, 0); }
+      });
+    } },
+  granizo: { name: 'Granizo', type: 'ice', desc: 'Cae granizo sobre los enemigos y los frena.',
+    cd: (l) => 2.2 - 0.12 * l,
+    fire(m) {
+      const n = 3 + (m.lvl >> 1);
+      let ok = false;
+      for (let i = 0; i < n; i++) {
+        const e = randomEnemy(120); if (!e) break; ok = true;
+        addZone({ x: e.x, y: e.y, r: 10, delay: 0.5, life: 0.15, every: 99, dmg: 12 + 4 * m.lvl, type: 'ice', col: '#a5f0ff', burst: 'boom', slow: true });
+      }
+      return ok;
+    } },
+  prision: { name: 'Prisión de Hielo', type: 'ice', desc: 'Congela por completo a varios enemigos.',
+    cd: (l) => 3.5 - 0.2 * l,
+    fire(m) {
+      const n = 2 + (m.lvl >> 1);
+      let ok = false;
+      for (let i = 0; i < n; i++) {
+        const e = randomEnemy(110); if (!e) break; ok = true;
+        e.frozenT = T + (e.boss ? 0.4 : 1.5 + 0.15 * m.lvl);
+        addFx('ring', e.x, e.y, e.r + 4, 0.3, '#a5f0ff');
+        hurt(e, 10 + 4 * m.lvl, 'ice', 0, 0);
+      }
+      return ok;
+    } },
+  copos: Object.assign({}, MOVES.hojas, { name: 'Copos Orbitales', type: 'ice', desc: 'Copos de nieve giran a tu alrededor y frenan.',
+    slow: true, orbSpr: 'snowflake', dmg: (l) => 4 + 2 * l }),
+
+  pedrada: { name: 'Pedrada', type: 'rock', desc: 'Lanza una roca pesada que empuja fuerte.',
+    cd: (l) => 1.3 - 0.07 * l,
+    fire(m) {
+      const t = nearest(player.x, player.y, 140); if (!t) return false;
+      const n = 1 + (m.lvl >= 5), a0 = Math.atan2(t.y - player.y, t.x - player.x);
+      for (let i = 0; i < n; i++) {
+        const a = a0 + (i ? 0.3 : 0);
+        const b = addBullet(player.x, player.y, Math.cos(a) * 120, Math.sin(a) * 120, 14 + 5 * m.lvl, 'rock', 0, 1.2, SPR.pebble, 4, 0);
+        b.kb = 140;
+      }
+    } },
+  sacudida: { name: 'Sacudida', type: 'rock', desc: 'Golpeas el suelo y empujas a todos lejos.',
+    cd: (l) => 3 - 0.18 * l,
+    fire(m) {
+      const R = 34 + 5 * m.lvl;
+      addFx('ring', player.x, player.y, R, 0.35, '#b08d57'); sfx('boom');
+      forNear(player.x, player.y, R, (e) => {
+        const dx = e.x - player.x, dy = e.y - player.y, d = Math.hypot(dx, dy) || 1;
+        if (d < R + e.r) hurt(e, 10 + 4 * m.lvl, 'rock', dx / d * 160, dy / d * 160);
+      });
+    } },
+  estalagmitas: { name: 'Estalagmitas', type: 'rock', desc: 'Púas de piedra brotan en línea hacia donde caminas.',
+    cd: (l) => 2.2 - 0.12 * l,
+    fire(m) {
+      const n = 5 + (m.lvl >> 1);
+      for (let i = 0; i < n; i++) {
+        addZone({ x: player.x + player.dirX * (16 + i * 14), y: player.y + player.dirY * (16 + i * 14), r: 9, delay: 0.05 + i * 0.07,
+          life: 0.15, every: 99, dmg: 12 + 4 * m.lvl, type: 'rock', col: '#b08d57', burst: 'spike' });
+      }
+    } },
+  rodar: { name: 'Roca Rodante', type: 'rock', desc: 'Una roca gigante rebota por la pantalla aplastando todo.',
+    cd: (l) => 4.5 - 0.25 * l,
+    fire(m) {
+      const a = rand(0, Math.PI * 2);
+      const b = addBullet(player.x, player.y, Math.cos(a) * 110, Math.sin(a) * 110, 14 + 4 * m.lvl, 'rock', 999, 4 + 0.3 * m.lvl, SPR.boulder, 6, 0);
+      b.bounce = true; b.rt = 0.4; b.kb = 90;
+    } },
+  avalancha: { name: 'Avalancha', type: 'rock', desc: 'Caen rocas por todos lados a tu alrededor.',
+    cd: (l) => 3 - 0.15 * l,
+    fire(m) {
+      const n = 4 + (m.lvl >> 1);
+      for (let i = 0; i < n; i++) {
+        addZone({ x: player.x + rand(-70, 70), y: player.y + rand(-70, 70), r: 14, delay: 0.6 + rand(0, 0.4), life: 0.15, every: 99,
+          dmg: 16 + 6 * m.lvl, type: 'rock', col: '#b08d57', burst: 'boom', anvil: true, dropSpr: 'boulder' });
+      }
+    } },
+
+  llamaFatua: { name: 'Llama Fatua', type: 'ghost', desc: 'Llamas espectrales que persiguen a los enemigos.',
+    cd: (l) => 1.1 - 0.06 * l,
+    fire(m) {
+      if (!nearest(player.x, player.y, 150)) return false;
+      const n = 1 + (m.lvl >= 3) + (m.lvl >= 6);
+      for (let i = 0; i < n; i++) {
+        const a = rand(0, Math.PI * 2);
+        const b = addBullet(player.x, player.y, Math.cos(a) * 80, Math.sin(a) * 80, 9 + 3 * m.lvl, 'ghost', 0, 2.2, SPR.wispP, 3, 0);
+        b.homing = true;
+      }
+    } },
+  maldicion: { name: 'Maldición', type: 'ghost', desc: 'Los enemigos malditos reciben más daño y se debilitan.',
+    cd: (l) => 2.6 - 0.14 * l,
+    fire(m) {
+      const n = 2 + (m.lvl >> 1);
+      let ok = false;
+      for (let i = 0; i < n; i++) {
+        const e = randomEnemy(120); if (!e) break; ok = true;
+        e.cursedT = T + 4; e.curseDmg = 2 + m.lvl;
+        addFx('ring', e.x, e.y, e.r + 5, 0.3, '#b48ce0');
+      }
+      return ok;
+    } },
+  espiritus: Object.assign({}, MOVES.hojas, { name: 'Espíritus Orbitales', type: 'ghost', desc: 'Almas en pena giran a tu alrededor.',
+    orbSpr: 'wispP', count: (l) => 2 + ((l + 1) >> 1), radius: (l) => 30 + 2 * l, dmg: (l) => 6 + 2 * l }),
+  guadana: { name: 'Guadaña Espectral', type: 'ghost', desc: 'Un tajo ancho a ambos lados.',
+    cd: (l) => 1.8 - 0.1 * l,
+    fire(m) {
+      const len = 48 + 6 * m.lvl;
+      for (const s of [1, -1]) {
+        addFx('slash', player.x, player.y, len * s, 0.22, '#b48ce0');
+        forNear(player.x + s * len / 2, player.y, len / 2 + 14, (e) => {
+          const dx = (e.x - player.x) * s;
+          if (dx > -4 && dx < len && Math.abs(e.y - player.y) < 22 + e.r) hurt(e, 12 + 4 * m.lvl, 'ghost', s * 50, 0);
+        });
+      }
+    } },
+  cadenas: { name: 'Cadenas', type: 'ghost', desc: 'Cadenas que saltan entre enemigos y los frenan.',
+    cd: (l) => 2 - 0.1 * l,
+    fire(m) {
+      let e = nearest(player.x, player.y, 120); if (!e) return false;
+      const pts = [player.x, player.y], hit = [];
+      for (let j = 0; j < 2 + m.lvl && e; j++) {
+        pts.push(e.x, e.y); hit.push(e.id);
+        const nx = e.x, ny = e.y;
+        e.slowT = T + 1;
+        hurt(e, 9 + 3 * m.lvl, 'ghost', 0, 0);
+        let nb = null, bd = 55 * 55;
+        forNear(nx, ny, 55, (o) => {
+          if (hit.indexOf(o.id) !== -1) return;
+          const dx = o.x - nx, dy = o.y - ny, d = dx * dx + dy * dy;
+          if (d < bd) { bd = d; nb = o; }
+        });
+        e = nb;
+      }
+      addFx('chain', 0, 0, pts, 0.2, '#b48ce0');
+    } },
+});
+
 // Fusiones: un ataque al máximo + una pasiva = versión épica
 const FUSIONS = [
   { from: 'chorro', pas: 'prisa', to: 'hidrocanon' },
@@ -943,14 +1122,14 @@ const ENEMY = {
   brasa: { type: 'fire', hp: 13, spd: 37, dmg: 8, xp: 2, spr: 'wisp', r: 5 },
   hongo: { type: 'plant', hp: 22, spd: 26, dmg: 8, xp: 2, spr: 'mush', r: 5 },
   chispa: { type: 'elec', hp: 12, spd: 46, dmg: 7, xp: 2, spr: 'spark', r: 5 },
-  piedrin: { type: 'normal', hp: 45, spd: 20, dmg: 11, xp: 4, spr: 'rock', r: 6 },
+  piedrin: { type: 'rock', hp: 45, spd: 20, dmg: 11, xp: 4, spr: 'stone', r: 6 },
   murcihielo: { type: 'normal', hp: 11, spd: 48, dmg: 7, xp: 1, spr: 'batIce', r: 5 },
-  cristalino: { type: 'water', hp: 40, spd: 24, dmg: 10, xp: 4, spr: 'rockIce', r: 6 },
+  cristalino: { type: 'ice', hp: 40, spd: 24, dmg: 10, xp: 4, spr: 'rockIce', r: 6 },
   magmon: { type: 'fire', hp: 30, spd: 28, dmg: 10, xp: 3, spr: 'slimeMag', r: 5 },
   cenizo: { type: 'normal', hp: 12, spd: 50, dmg: 7, xp: 1, spr: 'batAsh', r: 5 },
   lodo: { type: 'plant', hp: 28, spd: 24, dmg: 9, xp: 3, spr: 'slimeMud', r: 5 },
   moscon: { type: 'plant', hp: 10, spd: 55, dmg: 6, xp: 1, spr: 'batFly', r: 5 },
-  espectro: { type: 'normal', hp: 20, spd: 40, dmg: 9, xp: 3, spr: 'ghost', r: 5 },
+  espectro: { type: 'ghost', hp: 20, spd: 40, dmg: 9, xp: 3, spr: 'specter', r: 5 },
 };
 // Oleadas: cada 40 s cambia el tipo dominante, para obligarte a variar ataques
 const WAVES = [
@@ -963,7 +1142,7 @@ const WAVES = [
 const BOSS_TIMES = [240, 480];
 // Minijefes: aparecen en estos segundos y sueltan un cofre con una reliquia
 const MINI_TIMES = [90, 180, 300, 400];
-const TYPE_COL = { water: '#41a6f6', fire: '#ef7d57', plant: '#5ac46a', elec: '#ffcd75' };
+const TYPE_COL = { water: '#41a6f6', fire: '#ef7d57', plant: '#5ac46a', elec: '#ffcd75', ice: '#a5f0ff', rock: '#b08d57', ghost: '#b48ce0' };
 const RELICS = {
   frenesi: { name: 'Frenesí', desc: 'Todos tus ataques son 35% más rápidos.', apply: (p) => { p.cdMul *= 0.65; } },
   nova: { name: 'Nova Elemental', epic: true, desc: 'Cada 6 s una explosión de tu tipo golpea toda la pantalla.', apply: (p) => { p.novaT = 1; } },
@@ -1061,7 +1240,7 @@ function nearest(x, y, maxR) {
 
 // ---------- Entidades ----------
 function newPlayer(type) {
-  const base = { water: { hp: 100, spd: 52 }, fire: { hp: 80, spd: 56 }, plant: { hp: 130, spd: 48 }, elec: { hp: 90, spd: 60 } }[type];
+  const base = { water: { hp: 100, spd: 52 }, fire: { hp: 80, spd: 56 }, plant: { hp: 130, spd: 48 }, elec: { hp: 90, spd: 60 }, ice: { hp: 95, spd: 54 }, rock: { hp: 150, spd: 44 }, ghost: { hp: 75, spd: 60 } }[type];
   return {
     x: 0, y: 0, type, hp: base.hp, maxHp: base.hp, speed: base.spd, face: 1,
     level: 1, xp: 0, xpNext: 4, moving: false, dirX: 1, dirY: 0, magnet: 22, dmgMul: 1, cdMul: 1, regen: 0, inv: 0, stage: 0,
@@ -1131,7 +1310,8 @@ function hurt(e, base, atkType, kbx, kby) {
   const m = eff(atkType, e.type);
   const stab = atkType === player.type ? 1.2 : 1;
   const crit = player.relics.critico && Math.random() < 0.2;
-  const d = Math.max(1, Math.round(base * player.dmgMul * m * stab * (crit ? 2.5 : 1) * rand(0.9, 1.1)));
+  const curse = e.cursedT > T ? 1.4 : 1;
+  const d = Math.max(1, Math.round(base * player.dmgMul * m * stab * (crit ? 2.5 : 1) * curse * rand(0.9, 1.1)));
   e.hp -= d; e.flash = 0.08;
   sfx('hit', 70);
   e.kx += kbx * e.kbRes; e.ky += kby * e.kbRes;
@@ -1252,6 +1432,13 @@ function update(dt) {
         if (d < 8) b.life = 0;
       }
     }
+    if (b.homing) { // persigue al enemigo más cercano
+      const t = nearest(b.x, b.y, 130);
+      if (t) {
+        const dx = t.x - b.x, dy = t.y - b.y, d = Math.hypot(dx, dy) || 1, k = Math.min(1, dt * 5);
+        b.vx += (dx / d * 150 - b.vx) * k; b.vy += (dy / d * 150 - b.vy) * k;
+      }
+    }
     if (b.bounce) { // rebota en los bordes de la pantalla y puede volver a golpear
       if (Math.abs(b.x - p.x) > W / 2 - 3) b.vx = -Math.sign(b.x - p.x) * Math.abs(b.vx);
       if (Math.abs(b.y - p.y) > H / 2 - 3) b.vy = -Math.sign(b.y - p.y) * Math.abs(b.vy);
@@ -1274,6 +1461,7 @@ function update(dt) {
       }
       const sp = Math.hypot(b.vx, b.vy) || 1;
       hurt(e, b.dmg, b.type, b.vx / sp * b.kb, b.vy / sp * b.kb);
+      if (b.slow) e.slowT = T + b.slow;
       b.hit.push(e.id);
       if (--b.pierce < 0) { b.life = 0; return true; }
     });
@@ -1284,13 +1472,18 @@ function update(dt) {
   const scaleDmg = 1 + T / 400;
   for (const e of enemies) {
     if (e.dead) continue;
+    if (e.cursedT > T) { // maldición: daño cada medio segundo
+      e.curseTick = (e.curseTick || 0) - dt;
+      if (e.curseTick <= 0) { e.curseTick = 0.5; hurt(e, e.curseDmg, 'ghost', 0, 0); }
+      if (e.dead) continue;
+    }
     let dx = p.x - e.x, dy = p.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
     if (d > 340 && !e.boss && !e.mini) { // se quedó atrás: reaparece adelante
       const a = Math.atan2(-dy, -dx) + Math.PI + rand(-1, 1), R = Math.hypot(W, H) / 2 + 12;
       e.x = p.x + Math.cos(a) * R; e.y = p.y + Math.sin(a) * R; continue;
     }
-    let spd = e.slowT > T ? e.spd * 0.35 : e.spd; // atrapado por raíces
+    let spd = e.frozenT > T ? 0 : e.slowT > T ? e.spd * 0.35 : e.spd; // congelado o frenado
     if (e.mini) { // el minijefe embiste cada pocos segundos
       e.dashT -= dt;
       if (e.dashT <= 0) { e.dashT = 3.2; e.dash = 0.45; }
@@ -1585,7 +1778,7 @@ function render() {
     }
     ctx.globalAlpha = 1;
     if (z.chomper) { const s = SPR.chomper, fr = ((T * 4) | 0) & 1; ctx.drawImage(s.r[fr], (x - s.w / 2) | 0, (y - s.h / 2) | 0); }
-    if (z.anvil && z.delay > 0) { const s = SPR.anvil; ctx.drawImage(s.r[0], (x - s.w / 2) | 0, (y - s.h - z.delay * 110) | 0); }
+    if (z.anvil && z.delay > 0) { const s = SPR[z.dropSpr || 'anvil']; ctx.drawImage(s.r[0], (x - s.w / 2) | 0, (y - s.h - z.delay * 110) | 0); }
   }
   ctx.globalAlpha = 1;
   // campo estático alrededor del jugador
@@ -1619,6 +1812,8 @@ function render() {
       ctx.fillRect((x - 15) | 0, (y - h / 2 - 4) | 0, Math.max(0, 30 * e.hp / e.maxHp) | 0, 1);
     }
     if (e.mini) ctx.drawImage(SPR.crown.r[0], (x - 3) | 0, (y - h / 2 - 10) | 0);
+    if (e.frozenT > T) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#a5f0ff'; ctx.fillRect((x - w / 2) | 0, (y - h / 2) | 0, w, h); ctx.globalAlpha = 1; }
+    if (e.cursedT > T) { ctx.fillStyle = '#b48ce0'; ctx.fillRect((x - 1) | 0, (y - h / 2 - 4) | 0, 3, 3); }
   }
 
   // jugador
@@ -1655,7 +1850,8 @@ function render() {
     const d = MOVES[m.id], n = d.count(m.lvl), R = d.radius(m.lvl);
     for (let i = 0; i < n; i++) {
       const a = (m.ang || 0) + i * Math.PI * 2 / n;
-      ctx.drawImage(SPR.leaf.r[0],Math.round(W / 2 + Math.cos(a) * R - 2), Math.round(H / 2 + Math.sin(a) * R - 1));
+      const os = SPR[d.orbSpr || 'leaf'];
+      ctx.drawImage(os.r[0], Math.round(W / 2 + Math.cos(a) * R - 2), Math.round(H / 2 + Math.sin(a) * R - 1));
     }
   }
 
@@ -1712,6 +1908,13 @@ function render() {
         ctx.lineTo(mx, my); ctx.lineTo(pt[i] - cx, pt[i + 1] - cy);
       }
       ctx.stroke();
+    } else if (f.kind === 'spike') {
+      const hgt = 14 * Math.min(1, k * 4) * (1 - k * 0.5);
+      ctx.fillStyle = f.col; ctx.beginPath(); ctx.moveTo(x - 5, y); ctx.lineTo(x, y - hgt); ctx.lineTo(x + 5, y); ctx.fill();
+      ctx.fillStyle = '#d8b880'; ctx.fillRect((x - 1) | 0, (y - hgt + 2) | 0, 1, 3);
+    } else if (f.kind === 'slash') {
+      ctx.globalAlpha = 1 - k; ctx.strokeStyle = f.col; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x + f.v / 2, y, Math.abs(f.v) / 2, Math.PI, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
     } else if (f.kind === 'puff') {
       ctx.fillStyle = f.col; const r = f.v * (0.5 + k);
       ctx.globalAlpha = 1 - k;
@@ -1891,20 +2094,22 @@ function revive() {
 }
 
 // ---------- Menú principal ----------
-const TYPES = ['water', 'fire', 'plant', 'elec'];
-// Voltín se desbloquea al ganar una partida (si ya ganaste antes, queda desbloqueado de inmediato)
+const TYPES = ['water', 'fire', 'plant', 'elec', 'ice', 'rock', 'ghost'];
+// Criaturas que se desbloquean ganando en un mapa
+const UNLOCKS = { elec: 0, ice: 1, rock: 2, ghost: 3 };
 function isOpen(type) {
-  if (type !== 'elec') return true;
-  const best = load('elementa.best', null);
-  return load('elementa.unlocked', []).indexOf('elec') !== -1 || !!(best && best.win);
+  if (UNLOCKS[type] === undefined) return true;
+  if (load('elementa.unlocked', []).indexOf(type) !== -1) return true;
+  return type === 'elec' && hasWon(); // quien ya ganaba antes conserva a Voltín
 }
+function unlockText(type) { return 'Gana en ' + MAPS[UNLOCKS[type]].name + ' para desbloquearlo.'; }
 function unlock(type) {
   const u = load('elementa.unlocked', []);
   if (u.indexOf(type) === -1) { u.push(type); save('elementa.unlocked', u); }
 }
 let selIdx = Math.max(0, TYPES.indexOf(load('elementa.sel', 'water')));
 
-function seen() { return Object.assign({ water: 0, fire: 0, plant: 0, elec: 0 }, load('elementa.seen', {})); }
+function seen() { return Object.assign({ water: 0, fire: 0, plant: 0, elec: 0, ice: 0, rock: 0, ghost: 0 }, load('elementa.seen', {})); }
 function markSeen(type, stage) {
   const s = seen();
   if (s[type] < stage) { s[type] = stage; save('elementa.seen', s); }
@@ -1945,12 +2150,13 @@ function selectStarter(delta) {
   $('sName').textContent = open ? st.names[0] : '???';
   $('sBadge').innerHTML = '<span class="badge b-' + type + '">' + TYPE_NAME[type] + '</span>' +
     (open ? '<span class="badge b-pas">' + MOVES[st.move].name + '</span>' : '<span class="badge b-pas">BLOQUEADO</span>');
-  $('sDesc').textContent = open ? st.desc : 'Gana una partida (vence al jefe final) para desbloquearlo.';
+  $('sDesc').textContent = open ? st.desc : unlockText(type);
   updatePlayBtn();
   $('dots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i === selIdx));
 }
 
 function buildMenu() {
+  $('dots').innerHTML = TYPES.map(() => '<i></i>').join('');
   $('prevS').onclick = () => selectStarter(-1);
   $('nextS').onclick = () => selectStarter(1);
   $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx]) && mapIdx < mapsOpen()) start(TYPES[selIdx], { map: mapIdx }); };
@@ -2010,7 +2216,7 @@ function initScene() {
     scene.decor.push({ x: r() * SCENE_SPAN, y: 10 + r() * (H - 10), spr: k < 0.7 ? SPR.tuft : k < 0.85 ? SPR.flower : SPR.crystal });
   }
   scene.mobs = [];
-  for (const k of ['water', 'fire', 'plant', 'water2', 'fire2', 'plant2', 'slimeW', 'wisp', 'mush', 'bat', 'rock', 'spark', 'slimeW', 'mush']) {
+  for (const k of ['water', 'fire', 'plant', 'water2', 'fire2', 'plant2', 'slimeW', 'wisp', 'mush', 'bat', 'stone', 'spark', 'slimeW', 'mush']) {
     scene.mobs.push({ x: r() * W, y: 30 + r() * (H - 40), spr: SPR[k], vx: 0, vy: 0, t: r() * 2, face: 1 });
   }
 }
@@ -2112,8 +2318,12 @@ function gameOver(win) {
       const isBest = !best || (win && !best.win) || (win === best.win && T > best.t);
       if (isBest) { save('elementa.best', { t: T, lv: p.level, win }); lines.push('<span style="color:var(--gold)">¡Nuevo récord!</span>'); }
       if (win) {
-        if (load('elementa.unlocked', []).indexOf('elec') === -1) lines.push('<span style="color:var(--elec)">¡Desbloqueaste a Voltín (Eléctrico)!</span>');
-        unlock('elec');
+        for (const t in UNLOCKS) {
+          if (UNLOCKS[t] === run.map && load('elementa.unlocked', []).indexOf(t) === -1) {
+            unlock(t);
+            lines.push('<span style="color:var(--gold)">¡Desbloqueaste a ' + STARTERS[t].names[0] + ' (' + TYPE_NAME[t] + ')!</span>');
+          }
+        }
         if (run.map + 1 < MAPS.length && mapsOpen() < run.map + 2) {
           save('elementa.maps', run.map + 2);
           lines.push('<span style="color:var(--gold)">¡Nuevo mapa: ' + MAPS[run.map + 1].name + '!</span>');
@@ -2362,8 +2572,9 @@ if (location.hostname === 'localhost') window.__dev = {
 };
 // Arte de las criaturas (PNG con transparencia en sprites/). Reemplaza a los sprites dibujados con código.
 // Si una imagen no carga, el juego sigue usando el sprite de código para esa criatura.
-const ART = ['water1', 'water2', 'water3', 'fire1', 'fire2', 'fire3', 'plant1', 'plant2', 'plant3', 'elec2', 'elec3'];
-const ART_FACES_LEFT = { fire2: true }; // dibujos que miran a la izquierda
+const ART = ['water1', 'water2', 'water3', 'fire1', 'fire2', 'fire3', 'plant1', 'plant2', 'plant3', 'elec2', 'elec3',
+  'ice1', 'ice2', 'ice3', 'rock1', 'rock2', 'rock3', 'ghost1', 'ghost2', 'ghost3'];
+const ART_FACES_LEFT = { fire2: true, ice3: true }; // dibujos que miran a la izquierda
 function imgSprite(img, facesLeft) {
   // la imagen viene a RS veces la resolución lógica
   const iw = img.width, ih = img.height;
