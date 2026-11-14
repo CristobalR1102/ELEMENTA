@@ -195,6 +195,21 @@ const ROWS = {
   leaf: ['..lG', 'lGGg', 'Gg..'],
   thorn: ['.l.', 'lGl', '.g.'],
   crown: ['y..y..y', 'yy.y.yy', 'yyyyyyy', 'yryyyry'],
+  phoenix: ['y.......y', 'Oy.....yO', 'rOy...yOr', '.rOOyOOr.', '..rOOOr..', '...rOr...', '....r....'],
+  chomper: [[
+    '.gGGGg.', 'gGwGwGg', 'grrrrrg', 'gGwGwGg', '.gGGGg.', '...g...', '..ggg..',
+  ], [
+    '.......', '.gGGGg.', 'gGwwwGg', 'gGwwwGg', '.gGGGg.', '...g...', '..ggg..',
+  ]],
+  saw: ['.s.s.', 'sSSSs', '.SwS.', 'sSSSs', '.s.s.'],
+  anvil: ['sssssss', '.SSSSSs', '..SSS..', '.SSSSS.', 'sssssss'],
+  ghost: [[
+    '....oooo....', '..ooWWWWoo..', '.oWWWWWWWWo.', '.oWkkWWkkWo.', '.oWkkWWkkWo.', 'oWWWWWWWWWWo',
+    'oWWWWkkWWWWo', 'oWWWWWWWWWWo', 'oWWWWWWWWWWo', 'oWWWWWWWWWWo', 'oWo.oWWo.oWo', '.o...oo...o.',
+  ], [
+    '....oooo....', '..ooWWWWoo..', '.oWWWWWWWWo.', '.oWkkWWkkWo.', '.oWkkWWkkWo.', 'oWWWWWWWWWWo',
+    'oWWWWkkWWWWo', 'oWWWWWWWWWWo', 'oWWWWWWWWWWo', 'oWWWWWWWWWWo', 'oWWo.oo.oWWo', '.oo......oo.',
+  ]],
   chest: ['.ooooooo.', 'oYYYYYYYo', 'oYyYYYyYo', 'oooowoooo', 'oYYYwYYYo', 'oYYYYYYYo', '.ooooooo.'],
   tuft: ['...l...', '.l.G.l.', '.GlGlG.', 'gGGgGGg'],
   flower: ['.y.', 'ywy', '.y.', '.g.'],
@@ -480,6 +495,18 @@ function buildSprites() {
   SPR.leaf = sprite([ROWS.leaf], PAL_PLAYER.plant);
   SPR.thorn = sprite([ROWS.thorn], PAL_PLAYER.plant);
   SPR.crown = sprite([ROWS.crown], P({ y: '#ffcd75', r: '#b13e53' }));
+  SPR.phoenix = sprite([ROWS.phoenix], PAL_PLAYER.fire);
+  SPR.chomper = sprite(ROWS.chomper, P({ g: '#1f5c38', G: '#5ac46a', w: '#f4f4f4', r: '#b13e53' }));
+  SPR.saw = sprite([ROWS.saw], P({ s: '#5f616d', S: '#c2c3cc', w: '#f4f4f4' }));
+  SPR.anvil = sprite([ROWS.anvil], P({ s: '#2a2a33', S: '#8b8d99' }));
+  // enemigos de los mapas nuevos (variantes de color y el espectro)
+  SPR.batIce = sprite(ROWS.bat, P({ o: '#1a2552', A: '#a5f0ff', k: '#41a6f6' }));
+  SPR.rockIce = sprite(anim('rock'), P({ o: '#1a2552', A: '#73eff7', h: '#f4f4f4', s: '#41a6f6' }));
+  SPR.slimeMag = sprite(anim('slime'), P({ o: '#2e0f0f', A: '#7a2a1f', h: '#ef7d57', s: '#4a1a14', k: '#ffcd75' }));
+  SPR.batAsh = sprite(ROWS.bat, P({ o: '#1a1414', A: '#5f616d', k: '#ef7d57' }));
+  SPR.slimeMud = sprite(anim('slime'), P({ o: '#1f1a2e', A: '#6b4a8a', h: '#a7f070', s: '#4a3266' }));
+  SPR.batFly = sprite(ROWS.bat, P({ o: '#143d28', A: '#38975a', k: '#ff8fa3' }));
+  SPR.ghost = sprite(ROWS.ghost, P({ o: '#3a3a5a', W: '#d8dcf0', k: '#1a1c2c' }));
   SPR.chest = sprite([ROWS.chest], P({ o: '#5d3a1a', Y: '#ffcd75', y: '#fff3b0', w: '#f4f4f4' }));
   SPR.tuft = sprite([ROWS.tuft], P({ g: '#1f4a2c', G: '#3b7d4a', l: '#5ac46a' }));
   SPR.flower = sprite([ROWS.flower], P({ y: '#ffcd75', w: '#f4f4f4', g: '#3b7d4a' }));
@@ -531,16 +558,17 @@ function drawText(str, x, y, col, s) {
 
 // Suelo: un tile de 64x64 repetido con un patrón (muy barato de dibujar)
 let groundPat;
-function buildGround() {
+function buildGround(map) {
+  const [base, a, b, dots] = map ? map.ground : ['#2b4f36', '#325c3e', '#26462f', ['#ffcd75', '#f4f4f4', '#ff8fa3']];
   const c = document.createElement('canvas'); c.width = 64; c.height = 64;
   const g = c.getContext('2d');
-  g.fillStyle = '#2b4f36'; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = base; g.fillRect(0, 0, 64, 64);
   let s = 7;
   const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 70; i++) { g.fillStyle = r() < 0.5 ? '#325c3e' : '#26462f'; g.fillRect((r() * 64) | 0, (r() * 64) | 0, 1, 2); }
+  for (let i = 0; i < 70; i++) { g.fillStyle = r() < 0.5 ? a : b; g.fillRect((r() * 64) | 0, (r() * 64) | 0, 1, 2); }
   for (let i = 0; i < 4; i++) {
     const x = (r() * 60) | 0, y = (r() * 60) | 0;
-    g.fillStyle = pick(['#ffcd75', '#f4f4f4', '#ff8fa3']); g.fillRect(x, y, 1, 1);
+    g.fillStyle = dots[(r() * dots.length) | 0]; g.fillRect(x, y, 1, 1);
   }
   groundPat = ctx.createPattern(c, 'repeat');
 }
@@ -614,7 +642,7 @@ const MOVES = {
     radius: (l) => 22 + 2 * l,
     tick(m, dt) {
       m.ang = (m.ang || 0) + dt * (3 + 0.3 * m.lvl);
-      const n = this.count(m.lvl), R = this.radius(m.lvl), dmg = 5 + 2 * m.lvl;
+      const n = this.count(m.lvl), R = this.radius(m.lvl), dmg = this.dmg ? this.dmg(m.lvl) : 5 + 2 * m.lvl;
       for (let i = 0; i < n; i++) {
         const a = m.ang + i * Math.PI * 2 / n;
         const lx = player.x + Math.cos(a) * R, ly = player.y + Math.sin(a) * R;
@@ -758,6 +786,154 @@ Object.assign(MOVES, {
       }
     } },
 });
+// Ataques locos: con estos quedan 5 por tipo
+Object.assign(MOVES, {
+  remolino: { name: 'Remolino', type: 'water', desc: 'Torbellino que atrae a los enemigos al centro.',
+    cd: (l) => 3.4 - 0.18 * l,
+    fire(m) {
+      const t = nearest(player.x, player.y, 120); if (!t) return false;
+      addZone({ x: t.x, y: t.y, r: 18 + 2 * m.lvl, delay: 0, life: 2.6, every: 0.3, dmg: 4 + 2 * m.lvl, type: 'water', col: '#41a6f6', pull: 3, swirl: true });
+    } },
+  fenix: { name: 'Fénix', type: 'fire', desc: 'Un ave de fuego gira a tu alrededor dejando llamas.',
+    cd: (l) => 5 - 0.3 * l,
+    fire(m) { m.active = 4 + 0.2 * m.lvl; },
+    tick(m, dt) {
+      if (!(m.active > 0)) return;
+      m.active -= dt; m.ang = (m.ang || 0) + dt * 2.6;
+      const x = player.x + Math.cos(m.ang) * 62, y = player.y + Math.sin(m.ang) * 62;
+      m.fx = x; m.fy = y;
+      m.trail = (m.trail || 0) - dt;
+      if (m.trail <= 0) { m.trail = 0.14; addZone({ x, y, r: 7, delay: 0, life: 1.1, every: 0.35, dmg: 3 + 2 * m.lvl, type: 'fire', col: '#ef7d57' }); }
+      forNear(x, y, 10, (e) => {
+        if (e.fenixT > T) return;
+        const dx = e.x - x, dy = e.y - y;
+        if (dx * dx + dy * dy < (e.r + 7) * (e.r + 7)) { e.fenixT = T + 0.4; hurt(e, 10 + 4 * m.lvl, 'fire', dx * 4, dy * 4); }
+      });
+    } },
+  jardin: { name: 'Jardín Carnívoro', type: 'plant', desc: 'Plantas mordedoras que se quedan en el suelo.',
+    cd: (l) => 2.6 - 0.14 * l,
+    fire(m) {
+      const a = rand(0, Math.PI * 2);
+      addZone({ x: player.x + Math.cos(a) * 18, y: player.y + Math.sin(a) * 18, r: 15 + m.lvl, delay: 0, life: 5 + 0.3 * m.lvl, every: 0.5, dmg: 8 + 3 * m.lvl, type: 'plant', col: '#2f7d45', chomper: true });
+    } },
+  tormenta: { name: 'Tormenta Personal', type: 'elec', desc: 'Una nube te sigue y lanza rayos a lo cercano.',
+    cd: (l) => 0.55 - 0.03 * l,
+    fire(m) {
+      const e = nearest(player.x, player.y, 75); if (!e) return false;
+      addFx('chain', 0, 0, [player.x, player.y - 26, e.x, e.y], 0.12, '#ffcd75');
+      hurt(e, 6 + 3 * m.lvl, 'elec', 0, 0);
+    } },
+  imanGigante: { name: 'Imán Gigante', type: 'elec', desc: 'Atrae a los enemigos y los revienta con una descarga.',
+    cd: (l) => 5 - 0.3 * l,
+    fire(m) {
+      addZone({ x: player.x + player.dirX * 30, y: player.y + player.dirY * 30, r: 70, delay: 0, life: 1.2, every: 99, dmg: 0, type: 'elec', col: '#ffcd75', pull: 4, blast: 22 + 9 * m.lvl, ring: true });
+    } },
+  agujero: { name: 'Agujero Negro', type: 'normal', desc: 'Un vórtice que traga enemigos y luego estalla.',
+    cd: (l) => 6 - 0.35 * l,
+    fire(m) {
+      const t = nearest(player.x, player.y, 130);
+      const x = t ? t.x : player.x + player.dirX * 50, y = t ? t.y : player.y + player.dirY * 50;
+      addZone({ x, y, r: 24 + 2 * m.lvl, delay: 0, life: 3, every: 0.25, dmg: 4 + 2 * m.lvl, type: 'normal', col: '#5d275d', pull: 3.5, blast: 25 + 9 * m.lvl, hole: true });
+    } },
+  sierra: { name: 'Sierra Rebotadora', type: 'normal', desc: 'Discos que rebotan por los bordes de la pantalla.',
+    cd: (l) => 4 - 0.2 * l,
+    fire(m) {
+      const n = 1 + (m.lvl >= 4) + (m.lvl >= 7);
+      for (let i = 0; i < n; i++) {
+        const a = rand(0, Math.PI * 2);
+        const b = addBullet(player.x, player.y, Math.cos(a) * 150, Math.sin(a) * 150, 8 + 3 * m.lvl, 'normal', 999, 4 + 0.3 * m.lvl, SPR.saw, 3, 0);
+        b.bounce = true; b.rt = 0.35; b.kb = 40;
+      }
+    } },
+  yunques: { name: 'Lluvia de Yunques', type: 'normal', desc: 'Caen yunques del cielo sobre los enemigos.',
+    cd: (l) => 2.4 - 0.13 * l,
+    fire(m) {
+      const n = 2 + (m.lvl >> 1);
+      let ok = false;
+      for (let i = 0; i < n; i++) {
+        const e = randomEnemy(120); if (!e) break; ok = true;
+        addZone({ x: e.x, y: e.y, r: 12, delay: 0.7, life: 0.15, every: 99, dmg: 18 + 6 * m.lvl, type: 'normal', col: '#c2c3cc', burst: 'boom', anvil: true });
+      }
+      return ok;
+    } },
+  ruleta: { name: 'Ruleta Loca', type: 'normal', desc: 'Cada vez lanza un ataque distinto al azar.',
+    cd: (l) => 1.5 - 0.06 * l,
+    fire(m) {
+      const ids = Object.keys(MOVES).filter((id) => !MOVES[id].fused && !MOVES[id].count && !MOVES[id].tick && id !== 'ruleta');
+      const d = MOVES[pick(ids)];
+      return d.fire.call(d, { lvl: m.lvl, t: 0 });
+    } },
+});
+
+// Fusiones: un ataque al máximo + una pasiva = versión épica
+const FUSIONS = [
+  { from: 'chorro', pas: 'prisa', to: 'hidrocanon' },
+  { from: 'ascuas', pas: 'fuerza', to: 'supernova' },
+  { from: 'hojas', pas: 'iman', to: 'huracan' },
+  { from: 'rayo', pas: 'regen', to: 'tormentaVital' },
+  { from: 'bumeran', pas: 'vel', to: 'bumeranInf' },
+  { from: 'espinas', pas: 'vida', to: 'zarzal' },
+];
+Object.assign(MOVES, {
+  hidrocanon: { name: 'Hidrocañón', type: 'water', fused: true, desc: 'Rayo de agua continuo que barre todo en línea.',
+    cd: () => 0.12,
+    fire(m) {
+      const t = nearest(player.x, player.y, 170); if (!t) return false;
+      const a = Math.atan2(t.y - player.y, t.x - player.x), cs = Math.cos(a), sn = Math.sin(a);
+      m.ang = a; m.beamT = T + 0.15;
+      for (const e of enemies) {
+        if (e.dead) continue;
+        const dx = e.x - player.x, dy = e.y - player.y, along = dx * cs + dy * sn;
+        if (along > 0 && along < 170 && Math.abs(-dx * sn + dy * cs) < 5 + e.r) hurt(e, 9, 'water', cs * 30, sn * 30);
+      }
+    } },
+  supernova: { name: 'Supernova', type: 'fire', fused: true, desc: 'Bolas de fuego gigantes que estallan en cadena.',
+    cd: () => 0.75,
+    fire() {
+      const t = nearest(player.x, player.y, 150); if (!t) return false;
+      const a0 = Math.atan2(t.y - player.y, t.x - player.x);
+      for (let i = 0; i < 3; i++) {
+        const a = a0 + (i - 1) * 0.4;
+        const b = addBullet(player.x, player.y, Math.cos(a) * 130, Math.sin(a) * 130, 45, 'fire', 0, 1.4, SPR.fireball, 4, 34);
+        b.chain = true;
+      }
+    } },
+  tormentaVital: { name: 'Tormenta Vital', type: 'elec', fused: true, desc: 'Muchos rayos; cada acierto te cura.',
+    cd: () => 0.9,
+    fire() {
+      tmp.length = 0;
+      for (const e of enemies) if (!e.dead && onScreen(e)) tmp.push(e);
+      if (!tmp.length) return false;
+      for (let i = 0; i < 6 && tmp.length; i++) {
+        const j = (Math.random() * tmp.length) | 0, e = tmp[j];
+        tmp[j] = tmp[tmp.length - 1]; tmp.pop();
+        addFx('bolt', e.x, e.y, 0, 0.15, '#ffcd75');
+        hurt(e, 55, 'elec', 0, 0);
+        player.hp = Math.min(player.maxHp, player.hp + 1.5);
+      }
+    } },
+  bumeranInf: { name: 'Bumerán Infinito', type: 'normal', fused: true, desc: 'Bumeranes que rebotan sin parar por la pantalla.',
+    cd: () => 3,
+    fire() {
+      for (let i = 0; i < 3; i++) {
+        const a = rand(0, Math.PI * 2);
+        const b = addBullet(player.x, player.y, Math.cos(a) * 170, Math.sin(a) * 170, 30, 'normal', 999, 6, SPR.boomer, 3, 0);
+        b.bounce = true; b.rt = 0.35;
+      }
+    } },
+  zarzal: { name: 'Zarzal', type: 'plant', fused: true, desc: 'Explosión de 16 espinas que atraviesan.',
+    cd: () => 0.9,
+    fire() {
+      const a0 = T * 1.3;
+      for (let i = 0; i < 16; i++) {
+        const a = a0 + i * Math.PI * 2 / 16;
+        addBullet(player.x, player.y, Math.cos(a) * 150, Math.sin(a) * 150, 26, 'plant', 3, 0.8, SPR.thorn, 2, 0);
+      }
+    } },
+});
+MOVES.huracan = Object.assign({}, MOVES.hojas, { name: 'Huracán Verde', fused: true, desc: 'Un gran anillo de hojas gira a tu alrededor.',
+  count: () => 9, radius: () => 44, dmg: () => 30 });
+
 // Máximo de ataques: al completarlo, solo aparecen mejoras de los que ya tienes
 const MOVE_MAX_LVL = 8, PAS_MAX_LVL = 5, MAX_MOVES = 4;
 
@@ -768,6 +944,13 @@ const ENEMY = {
   hongo: { type: 'plant', hp: 22, spd: 26, dmg: 8, xp: 2, spr: 'mush', r: 5 },
   chispa: { type: 'elec', hp: 12, spd: 46, dmg: 7, xp: 2, spr: 'spark', r: 5 },
   piedrin: { type: 'normal', hp: 45, spd: 20, dmg: 11, xp: 4, spr: 'rock', r: 6 },
+  murcihielo: { type: 'normal', hp: 11, spd: 48, dmg: 7, xp: 1, spr: 'batIce', r: 5 },
+  cristalino: { type: 'water', hp: 40, spd: 24, dmg: 10, xp: 4, spr: 'rockIce', r: 6 },
+  magmon: { type: 'fire', hp: 30, spd: 28, dmg: 10, xp: 3, spr: 'slimeMag', r: 5 },
+  cenizo: { type: 'normal', hp: 12, spd: 50, dmg: 7, xp: 1, spr: 'batAsh', r: 5 },
+  lodo: { type: 'plant', hp: 28, spd: 24, dmg: 9, xp: 3, spr: 'slimeMud', r: 5 },
+  moscon: { type: 'plant', hp: 10, spd: 55, dmg: 6, xp: 1, spr: 'batFly', r: 5 },
+  espectro: { type: 'normal', hp: 20, spd: 40, dmg: 9, xp: 3, spr: 'ghost', r: 5 },
 };
 // Oleadas: cada 40 s cambia el tipo dominante, para obligarte a variar ataques
 const WAVES = [
@@ -790,6 +973,36 @@ const RELICS = {
   robo: { name: 'Robo de Vida', desc: 'Cada enemigo derrotado te cura 1 de vida.', apply: () => {} },
 };
 const WIN_TIME = 480;
+// Mapas: cada uno con su suelo, enemigos y jefe. Se desbloquean ganando en el anterior.
+const MAPS = [
+  { name: 'Pradera', desc: 'Pasto tranquilo. Ideal para empezar.', diff: 1,
+    ground: ['#2b4f36', '#325c3e', '#26462f', ['#ffcd75', '#f4f4f4', '#ff8fa3']],
+    waves: WAVES, elite: ['charco', 'brasa', 'hongo', 'chispa'], boss: ['charco', 'brasa', 'hongo', 'chispa'], horde: 'murci', extra: 'piedrin' },
+  { name: 'Cueva de Cristal', desc: 'Murciélagos de hielo y cristalinos resistentes.', diff: 1.3,
+    ground: ['#23283a', '#2c3350', '#1b1f2e', ['#73eff7', '#a5f0ff', '#41a6f6']],
+    waves: [['murcihielo', 'murcihielo', 'charco', 'cristalino'], ['cristalino', 'charco', 'charco', 'murcihielo'], ['chispa', 'murcihielo', 'cristalino', 'charco']],
+    elite: ['cristalino', 'charco'], boss: ['cristalino'], horde: 'murcihielo', extra: 'piedrin' },
+  { name: 'Volcán', desc: 'Lava, ceniza y magmones que golpean fuerte.', diff: 1.6,
+    ground: ['#3a1f1a', '#4a2620', '#2c1714', ['#ef7d57', '#ffcd75', '#b8452f']],
+    waves: [['cenizo', 'brasa', 'brasa', 'magmon'], ['magmon', 'brasa', 'cenizo', 'magmon'], ['brasa', 'magmon', 'piedrin', 'cenizo']],
+    elite: ['magmon', 'brasa'], boss: ['magmon'], horde: 'cenizo' },
+  { name: 'Pantano', desc: 'Lodo venenoso y moscones veloces.', diff: 1.9,
+    ground: ['#26332a', '#30422f', '#1d281f', ['#a7f070', '#6b4a8a', '#73a07a']],
+    waves: [['moscon', 'hongo', 'lodo'], ['lodo', 'lodo', 'charco', 'moscon'], ['hongo', 'moscon', 'chispa', 'lodo']],
+    elite: ['lodo', 'hongo'], boss: ['lodo'], horde: 'moscon' },
+  { name: 'Ruinas', desc: 'Espectros antiguos. El desafío final.', diff: 2.3,
+    ground: ['#3a3934', '#46443e', '#2e2d29', ['#c2c3cc', '#ffcd75', '#8b8d99']],
+    waves: [['espectro', 'murci', 'piedrin'], ['espectro', 'espectro', 'chispa', 'piedrin'], ['espectro', 'magmon', 'lodo', 'cristalino']],
+    elite: ['espectro', 'piedrin'], boss: ['espectro'], horde: 'espectro' },
+];
+const DAILY_TIME = 300, DAILY_REWARD = 120;
+const DAILY_MODS = [
+  { name: 'Enemigos veloces', desc: 'Los enemigos se mueven 30% más rápido.', apply: { enemySpd: 1.3 } },
+  { name: 'Lluvia de cristales', desc: 'Doble experiencia, pero muchos más enemigos.', apply: { xp: 2, spawn: 1.6 } },
+  { name: 'Cañón de cristal', desc: 'Haces +50% de daño, pero tienes la mitad de vida.', apply: { dmg: 1.5, hp: 0.5 } },
+  { name: 'Noche de minijefes', desc: 'Los minijefes aparecen el doble de seguido.', apply: { mini: 2 } },
+  { name: 'Bendición', desc: 'Empiezas con una reliquia al azar.', apply: { relic: true } },
+];
 
 // ---------- Estado ----------
 let state = 'menu';
@@ -797,7 +1010,9 @@ let T = 0, kills = 0, spawnT = 0, nextElite = 50, nextHorde = 75, bossIdx = 0, w
 let player = null;
 let enemies = [], bullets = [], gems = [], fx = [], nums = [], zones = [];
 const tmp = [];
-let miniIdx = 0, pendingRelic = 0;
+let miniIdx = 0, pendingRelic = 0, nextInfBoss = 0, nextInfMini = 0;
+// Datos de la partida actual: modo (normal o diario), mapa, modificadores, dificultad y contadores
+let run = { mode: 'normal', map: 0, mods: {}, easy: false, infinite: false, stats: {}, winKills: 0, winT: 0, hpMul: 1, spdMul: 1, dmgMul: 1, xpMul: 1 };
 let pendingLv = 0, uid = 0, hurtFlash = 0;
 let lowPower = load('elementa.low', false);
 let dirty = true;
@@ -829,7 +1044,7 @@ function forNear(x, y, r, fn) {
     let i = cellHead[cy * gCols + cx];
     while (i !== -1) {
       const e = enemies[i];
-      if (!e.dead && fn(e) === true) return;
+      if (e && !e.dead && fn(e) === true) return;
       i = nextIdx[i];
     }
   }
@@ -859,6 +1074,20 @@ function addBullet(x, y, vx, vy, dmg, type, pierce, life, spr, r, aoe) {
   bullets.push(b);
   return b;
 }
+function zonePull(z, dt) {
+  forNear(z.x, z.y, z.r * 1.8, (e) => {
+    if (e.boss) return;
+    const k = Math.min(1, z.pull * dt * (e.mini ? 0.3 : 1));
+    e.x += (z.x - e.x) * k; e.y += (z.y - e.y) * k;
+  });
+}
+function zoneBlast(z) {
+  addFx('ring', z.x, z.y, z.r * 1.3, 0.35, z.col); sfx('boom');
+  forNear(z.x, z.y, z.r * 1.3, (e) => {
+    const dx = e.x - z.x, dy = e.y - z.y, d = Math.hypot(dx, dy) || 1;
+    if (d < z.r * 1.3 + e.r) hurt(e, z.blast, z.type, dx / d * 120, dy / d * 120);
+  });
+}
 function addZone(z) { if (zones.length < 80) { z.tickT = 0; zones.push(z); } }
 function onScreen(e) { return Math.abs(e.x - player.x) < W / 2 && Math.abs(e.y - player.y) < H / 2; }
 function randomEnemy(maxR) {
@@ -886,12 +1115,12 @@ function spawnEnemy(kind, opts) {
     x = player.x + Math.cos(a) * R; y = player.y + Math.sin(a) * R;
   }
   const scale = opts && opts.scale || 1;
-  const hpMul = (1 + T / 80) * (opts && opts.hpMul || 1);
+  const hpMul = (1 + T / 80) * (opts && opts.hpMul || 1) * run.hpMul;
   enemies.push({
     id: ++uid, kind, type: d.type, x, y, kx: 0, ky: 0,
     hp: d.hp * hpMul, maxHp: d.hp * hpMul,
-    spd: d.spd * (1 + Math.min(0.35, T / 1200)) * (opts && opts.spdMul || 1),
-    dmg: d.dmg * (opts && opts.dmgMul || 1), xp: d.xp * (opts && opts.xpMul || 1),
+    spd: d.spd * (1 + Math.min(0.35, T / 1200)) * (opts && opts.spdMul || 1) * run.spdMul,
+    dmg: d.dmg * (opts && opts.dmgMul || 1) * run.dmgMul, xp: d.xp * (opts && opts.xpMul || 1),
     spr: SPR[d.spr], scale, r: d.r * scale, kbRes: opts && (opts.boss || opts.mini) ? 0.12 : scale > 1 ? 0.4 : 1,
     flash: 0, leafT: 0, slowT: 0, orbT: 0, dead: false, boss: !!(opts && opts.boss), final: !!(opts && opts.final),
     mini: !!(opts && opts.mini), dashT: 2.5, dash: 0,
@@ -911,6 +1140,8 @@ function hurt(e, base, atkType, kbx, kby) {
 }
 function kill(e) {
   e.dead = true; kills++;
+  run.stats.kills = (run.stats.kills || 0) + 1;
+  if (e.mini) run.stats.minis = (run.stats.minis || 0) + 1;
   sfx('kill', 60);
   addFx('puff', e.x, e.y, e.r, 0.25, '#f4f4f4');
   if (player.relics.robo) player.hp = Math.min(player.maxHp, player.hp + 1);
@@ -980,6 +1211,7 @@ function update(dt) {
   if (p.moving) { const l = Math.hypot(ix, iy); p.dirX = ix / l; p.dirY = iy / l; }
   p.inv -= dt; hurtFlash -= dt;
   if (p.regen) p.hp = Math.min(p.maxHp, p.hp + p.regen * dt);
+  tutUpdate(dt);
 
   fillGrid();
 
@@ -1020,6 +1252,11 @@ function update(dt) {
         if (d < 8) b.life = 0;
       }
     }
+    if (b.bounce) { // rebota en los bordes de la pantalla y puede volver a golpear
+      if (Math.abs(b.x - p.x) > W / 2 - 3) b.vx = -Math.sign(b.x - p.x) * Math.abs(b.vx);
+      if (Math.abs(b.y - p.y) > H / 2 - 3) b.vy = -Math.sign(b.y - p.y) * Math.abs(b.vy);
+      b.rt -= dt; if (b.rt <= 0) { b.rt = 0.35; b.hit.length = 0; }
+    }
     if (b.life > 0) forNear(b.x, b.y, b.r + 8, (e) => {
       if (b.hit.indexOf(e.id) !== -1) return;
       const dx = e.x - b.x, dy = e.y - b.y;
@@ -1030,6 +1267,9 @@ function update(dt) {
           const ox = o.x - b.x, oy = o.y - b.y, d = Math.hypot(ox, oy) || 1;
           if (d < b.aoe + o.r) hurt(o, b.dmg, b.type, ox / d * 40, oy / d * 40);
         });
+        if (b.chain) for (let k = 0; k < 3; k++) {
+          addZone({ x: b.x + rand(-34, 34), y: b.y + rand(-34, 34), r: 20, delay: 0.25 + k * 0.12, life: 0.15, every: 99, dmg: b.dmg * 0.6, type: b.type, col: '#ffcd75', burst: 'boom' });
+        }
         b.life = 0; return true;
       }
       const sp = Math.hypot(b.vx, b.vy) || 1;
@@ -1082,6 +1322,7 @@ function update(dt) {
   }
   // limpiar muertos
   for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].dead) { enemies[i] = enemies[enemies.length - 1]; enemies.pop(); }
+  fillGrid(); // la rejilla vuelve a calzar con la lista ya limpia (la usan las zonas de más abajo)
 
   // cristales
   for (let i = gems.length - 1; i >= 0; i--) {
@@ -1090,7 +1331,7 @@ function update(dt) {
     if (!g.mag && d < p.magnet) g.mag = true;
     if (g.mag) { const sp = 160 * dt / (d || 1); g.x += dx * Math.min(1, sp); g.y += dy * Math.min(1, sp); }
     if (d < 7) {
-      if (g.chest) { pendingRelic++; sfx('chest'); }
+      if (g.chest) { pendingRelic++; sfx('chest'); run.stats.chests = (run.stats.chests || 0) + 1; }
       else if (g.berry) { p.hp = Math.min(p.maxHp, p.hp + 30); addFx('puff', p.x, p.y, 8, 0.3, '#ff8fa3'); }
       else gainXp(g.v);
       gems[i] = gems[gems.length - 1]; gems.pop();
@@ -1104,8 +1345,9 @@ function update(dt) {
       z.delay -= dt;
       if (z.delay <= 0 && z.burst) addFx(z.burst, z.x, z.y, z.r, 0.3, z.col);
     } else {
+      if (z.pull) zonePull(z, dt);
       z.tickT -= dt;
-      if (z.tickT <= 0) {
+      if (z.tickT <= 0 && z.dmg > 0) {
         z.tickT = z.every;
         forNear(z.x, z.y, z.r, (e) => {
           const dx = e.x - z.x, dy = e.y - z.y;
@@ -1113,7 +1355,7 @@ function update(dt) {
         });
       }
       z.life -= dt;
-      if (z.life <= 0) { zones[i] = zones[zones.length - 1]; zones.pop(); }
+      if (z.life <= 0) { if (z.blast) zoneBlast(z); zones[i] = zones[zones.length - 1]; zones.pop(); }
     }
   }
 
@@ -1127,52 +1369,60 @@ function update(dt) {
     if (p.revives > 0) revive(); // aquí se podrá ofrecer también revivir viendo un anuncio
     else return gameOver(false);
   }
+  if (run.mode === 'daily' && !won && T >= DAILY_TIME) { won = true; winAt = T + 0.5; banner('¡Desafío completado!'); }
   if (won && T >= winAt) return gameOver(true);
   if (pendingRelic > 0) openRelic();
   else if (pendingLv > 0) openLevelUp();
 }
 
 function spawner(dt) {
-  const wave = WAVES[Math.floor(T / 40) % WAVES.length];
-  const rate = Math.min(9, 1.2 + T / 25);
+  const map = MAPS[run.map], md = run.mods;
+  const wave = map.waves[Math.floor(T / 40) % map.waves.length];
+  const rate = Math.min(9, 1.2 + T / 25) * (md.spawn || 1) * (run.easy ? 0.85 : 1);
   const cap = Math.min(170, 40 + T / 2);
   spawnT -= dt;
   while (spawnT <= 0) {
     spawnT += 1 / rate;
-    if (enemies.length < cap) spawnEnemy(T > 100 && Math.random() < 0.12 ? 'piedrin' : pick(wave));
+    if (enemies.length < cap) spawnEnemy(map.extra && T > 100 && Math.random() < 0.12 ? map.extra : pick(wave));
   }
   if (T >= nextElite) {
     nextElite += 50;
-    spawnEnemy(wave[0] === 'murci' ? pick(['charco', 'brasa', 'hongo', 'chispa']) : wave[0], { scale: 2, hpMul: 9, xpMul: 12, dmgMul: 1.6, spdMul: 0.85 });
+    spawnEnemy(pick(map.elite), { scale: 2, hpMul: 9, xpMul: 12, dmgMul: 1.6, spdMul: 0.85 });
   }
   if (T >= nextHorde) {
     nextHorde += 75;
     const n = 24, R = 140;
     for (let i = 0; i < n; i++) {
       const a = i / n * Math.PI * 2;
-      spawnEnemy('murci', { x: player.x + Math.cos(a) * R, y: player.y + Math.sin(a) * R });
+      spawnEnemy(map.horde, { x: player.x + Math.cos(a) * R, y: player.y + Math.sin(a) * R });
     }
     banner('¡Una bandada te rodea!');
   }
-  if (miniIdx < MINI_TIMES.length && T >= MINI_TIMES[miniIdx]) {
-    const kind = pick(['charco', 'brasa', 'hongo', 'chispa', 'piedrin']);
-    spawnEnemy(kind, { scale: 2, hpMul: 22 + miniIdx * 6, xpMul: 15, dmgMul: 2, spdMul: 0.95, mini: true });
+  const miniAt = miniIdx < MINI_TIMES.length ? MINI_TIMES[miniIdx] / (md.mini || 1) : (run.infinite ? nextInfMini : Infinity);
+  if (T >= miniAt) {
+    spawnEnemy(pick(map.elite), { scale: 2, hpMul: 22 + miniIdx * 6, xpMul: 15, dmgMul: 2, spdMul: 0.95, mini: true });
     banner('¡Minijefe! Derrótalo y abre su cofre'); sfx('boss');
     miniIdx++;
+    if (run.infinite) nextInfMini = T + 90;
   }
-  if (bossIdx < BOSS_TIMES.length && T >= BOSS_TIMES[bossIdx]) {
-    const final = bossIdx === BOSS_TIMES.length - 1;
-    const kind = pick(['charco', 'brasa', 'hongo', 'chispa']);
-    spawnEnemy(kind, { scale: 3, hpMul: final ? 75 : 35, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final });
+  const bossAllowed = run.mode === 'normal' ? !run.infinite : bossIdx === 0;
+  if (bossAllowed && bossIdx < BOSS_TIMES.length && T >= BOSS_TIMES[bossIdx]) {
+    const final = run.mode === 'normal' && bossIdx === BOSS_TIMES.length - 1;
+    spawnEnemy(pick(map.boss), { scale: 3, hpMul: final ? 75 : 35, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final });
     sfx('boss');
-    banner(final ? '¡Jefe final: ' + TYPE_NAME[ENEMY[kind].type] + '!' : '¡Apareció un jefe de tipo ' + TYPE_NAME[ENEMY[kind].type] + '!');
+    banner(final ? '¡Jefe final de ' + map.name + '!' : '¡Apareció un jefe!');
     bossIdx++;
+  }
+  if (run.infinite && T >= nextInfBoss) {
+    nextInfBoss = T + 120;
+    spawnEnemy(pick(map.boss), { scale: 3, hpMul: 75 * (1 + (T - 480) / 240), xpMul: 1, dmgMul: 2.8, spdMul: 0.8, boss: true });
+    sfx('boss'); banner('¡Jefe del modo infinito!');
   }
 }
 
 function gainXp(v) {
   const p = player;
-  p.xp += v * (p.xpMul || 1);
+  p.xp += v * (p.xpMul || 1) * run.xpMul;
   while (p.xp >= p.xpNext) { p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(6 + p.level * 4 + p.level * p.level * 0.15); pendingLv++; }
 }
 
@@ -1182,7 +1432,13 @@ function options() {
   for (const m of p.moves) if (m.lvl < MOVE_MAX_LVL) opts.push({ kind: 'up', id: m.id, w: 3 });
   if (p.moves.length < MAX_MOVES) for (const id in MOVES) if (!p.moves.some((m) => m.id === id)) opts.push({ kind: 'new', id, w: MOVES[id].type === p.type ? 1.2 : 0.8 });
   for (const id in PASSIVES) if ((p.passives[id] || 0) < PAS_MAX_LVL) opts.push({ kind: 'pas', id, w: 1.2 });
-  const out = [];
+  // si hay una fusión disponible, siempre aparece como primera opción
+  const fuse = [];
+  for (const f of FUSIONS) {
+    const m = p.moves.find((x) => x.id === f.from);
+    if (m && m.lvl >= MOVE_MAX_LVL && (p.passives[f.pas] || 0) > 0) fuse.push({ kind: 'fuse', id: f.to, from: f.from, pas: f.pas });
+  }
+  const out = fuse.slice(0, 1);
   while (out.length < 3 && opts.length) {
     let sum = 0; for (const o of opts) sum += o.w;
     let r = Math.random() * sum, k = 0;
@@ -1239,7 +1495,12 @@ function openLevelUp() {
     const b = document.createElement('button'); b.className = 'card';
     let title, desc, badge;
     if (o.kind === 'heal') { title = 'Baya'; desc = 'Recupera 40 de vida.'; badge = '<span class="badge b-pas">CURA</span>'; }
-    else if (o.kind === 'pas') {
+    else if (o.kind === 'fuse') {
+      const d = MOVES[o.id];
+      title = d.name; desc = MOVES[o.from].name + ' Nv8 + ' + PASSIVES[o.pas].name + ': ' + d.desc;
+      badge = '<span class="badge b-new">FUSIÓN</span>';
+      b.className = 'card fuse';
+    } else if (o.kind === 'pas') {
       const d = PASSIVES[o.id], lv = (player.passives[o.id] || 0) + 1;
       title = d.name + ' Nv' + lv; desc = d.desc; badge = '<span class="badge b-pas">PASIVA</span>';
     } else {
@@ -1259,6 +1520,12 @@ function choose(o) {
   const p = player;
   if (o.kind === 'heal') p.hp = Math.min(p.maxHp, p.hp + 40);
   else if (o.kind === 'pas') { p.passives[o.id] = (p.passives[o.id] || 0) + 1; PASSIVES[o.id].apply(p); }
+  else if (o.kind === 'fuse') {
+    const m = p.moves.find((x) => x.id === o.from);
+    m.id = o.id; m.t = 0.2;
+    run.stats.fusions = (run.stats.fusions || 0) + 1;
+    banner('¡Fusión: ' + MOVES[o.id].name + '!'); sfx('evolve');
+  }
   else if (o.kind === 'new') p.moves.push({ id: o.id, lvl: 1, t: 0.2 });
   else p.moves.find((m) => m.id === o.id).lvl++;
   pendingLv--;
@@ -1270,6 +1537,7 @@ function choose(o) {
     addFx('ring', p.x, p.y, 60, 0.6, '#ffcd75');
     banner('¡' + before + ' evolucionó en ' + pname(p) + '!'); sfx('evolve');
     markSeen(p.type, p.stage);
+    run.stats.evos = (run.stats.evos || 0) + 1;
   }
   updateHud();
   nextScreen();
@@ -1306,6 +1574,18 @@ function render() {
       ctx.globalAlpha = Math.min(0.4, z.life); ctx.fillStyle = z.col;
       ctx.beginPath(); ctx.arc(x, y, z.r, 0, Math.PI * 2); ctx.fill();
     }
+  }
+  for (const z of zones) {
+    const x = z.x - cx, y = z.y - cy;
+    if (z.delay <= 0 && (z.swirl || z.hole || z.ring)) {
+      const R = z.r, a0 = T * (z.hole ? -6 : 7);
+      ctx.strokeStyle = z.hole ? '#b13e53' : z.col; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.8;
+      for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x, y, R * (0.4 + k * 0.25), a0 + k * 2, a0 + k * 2 + 2.2); ctx.stroke(); }
+      if (z.hole) { ctx.globalAlpha = 1; ctx.fillStyle = '#0b0e15'; ctx.beginPath(); ctx.arc(x, y, R * 0.35, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    if (z.chomper) { const s = SPR.chomper, fr = ((T * 4) | 0) & 1; ctx.drawImage(s.r[fr], (x - s.w / 2) | 0, (y - s.h / 2) | 0); }
+    if (z.anvil && z.delay > 0) { const s = SPR.anvil; ctx.drawImage(s.r[0], (x - s.w / 2) | 0, (y - s.h - z.delay * 110) | 0); }
   }
   ctx.globalAlpha = 1;
   // campo estático alrededor del jugador
@@ -1371,8 +1651,8 @@ function render() {
   }
 
   // hojas orbitando
-  for (const m of p.moves) if (m.id === 'hojas') {
-    const d = MOVES.hojas, n = d.count(m.lvl), R = d.radius(m.lvl);
+  for (const m of p.moves) if (MOVES[m.id].count) {
+    const d = MOVES[m.id], n = d.count(m.lvl), R = d.radius(m.lvl);
     for (let i = 0; i < n; i++) {
       const a = (m.ang || 0) + i * Math.PI * 2 / n;
       ctx.drawImage(SPR.leaf.r[0],Math.round(W / 2 + Math.cos(a) * R - 2), Math.round(H / 2 + Math.sin(a) * R - 1));
@@ -1389,8 +1669,22 @@ function render() {
       ctx.globalAlpha = 1;
       continue;
     }
-    const img = b.boomer !== undefined && ((T * 14) | 0) & 1 ? b.spr.l[0] : b.spr.r[0];
+    const img = (b.boomer !== undefined || b.bounce) && ((T * 14) | 0) & 1 ? b.spr.l[0] : b.spr.r[0];
     ctx.drawImage(img, Math.round(x - b.spr.w / 2), Math.round(y - b.spr.h / 2));
+  }
+
+  for (const m of p.moves) {
+    if (m.id === 'hidrocanon' && m.beamT > T) {
+      const x1 = W / 2 + Math.cos(m.ang) * 170, y1 = H / 2 + Math.sin(m.ang) * 170;
+      ctx.globalAlpha = 0.85; ctx.strokeStyle = '#41a6f6'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(W / 2, H / 2); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#f4f4f4'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (m.id === 'fenix' && m.active > 0) { const s = SPR.phoenix; ctx.drawImage(s.r[0], (m.fx - cx - s.w / 2) | 0, (m.fy - cy - s.h / 2) | 0); }
+    if (m.id === 'tormenta') {
+      ctx.fillStyle = '#8b8d99';
+      for (const [ox, r] of [[-5, 4], [0, 6], [5, 4]]) { ctx.beginPath(); ctx.arc(W / 2 + ox, H / 2 - 28, r, 0, Math.PI * 2); ctx.fill(); }
+    }
   }
 
   // efectos encima (látigo, rayo, humo)
@@ -1627,7 +1921,8 @@ function drawFoot(canvas, img, w, h) {
 function showMenu() {
   state = 'menu';
   $('hud').style.display = 'none';
-  for (const id of ['levelup', 'pause', 'over', 'dex', 'settings', 'shop']) $(id).classList.remove('show');
+  for (const id of ['levelup', 'pause', 'over', 'dex', 'settings', 'shop', 'daily', 'missions']) $(id).classList.remove('show');
+  tut.on = false; tutShow();
   updateMenuCoins();
   $('menu').classList.add('show');
   const best = load('elementa.best', null);
@@ -1635,6 +1930,8 @@ function showMenu() {
     ? 'Récord ' + fmt(best.t) + ' · Nivel ' + best.lv + (best.win ? ' · ¡Ganaste!' : '')
     : 'Aún no tienes récord';
   selectStarter(0);
+  selectMap(0);
+  updateMenuBadges();
   if (!scene.mobs.length) initScene();
 }
 function fmt(t) { t = Math.floor(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
@@ -1649,15 +1946,20 @@ function selectStarter(delta) {
   $('sBadge').innerHTML = '<span class="badge b-' + type + '">' + TYPE_NAME[type] + '</span>' +
     (open ? '<span class="badge b-pas">' + MOVES[st.move].name + '</span>' : '<span class="badge b-pas">BLOQUEADO</span>');
   $('sDesc').textContent = open ? st.desc : 'Gana una partida (vence al jefe final) para desbloquearlo.';
-  $('btnPlay').disabled = !open;
-  $('btnPlay').textContent = open ? 'JUGAR' : 'BLOQUEADO';
+  updatePlayBtn();
   $('dots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i === selIdx));
 }
 
 function buildMenu() {
   $('prevS').onclick = () => selectStarter(-1);
   $('nextS').onclick = () => selectStarter(1);
-  $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx])) start(TYPES[selIdx]); };
+  $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx]) && mapIdx < mapsOpen()) start(TYPES[selIdx], { map: mapIdx }); };
+  $('prevM').onclick = () => selectMap(-1);
+  $('nextM').onclick = () => selectMap(1);
+  $('btnDaily').onclick = openDaily;
+  $('dailyBack').onclick = () => $('daily').classList.remove('show');
+  $('btnMissions').onclick = openMissions;
+  $('missionsBack').onclick = () => { $('missions').classList.remove('show'); updateMenuBadges(); };
   // deslizar el dedo sobre la vitrina también cambia de criatura
   let sx = null;
   $('vitrina').addEventListener('pointerdown', (e) => { sx = e.clientX; });
@@ -1753,16 +2055,33 @@ function drawShowcase() {
   const type = TYPES[selIdx], sp = SPR[type], fr = ((scene.t * 2.5) | 0) & 1;
   drawFoot($('showCv'), (isOpen(type) ? sp.r : sp.dark)[fr], sp.w, sp.h);
 }
-function start(type) {
+function hasWon() { const b = load('elementa.best', null); return !!(b && b.win); }
+function start(type, opts) {
+  opts = opts || {};
+  const mode = opts.mode || 'normal', mods = opts.mods || {}, mapI = opts.map || 0, map = MAPS[mapI];
+  // primera partida (hasta tu primera victoria en la Pradera): enemigos un poco más débiles
+  const easy = mode === 'normal' && mapI === 0 && !hasWon();
+  run = { mode, map: mapI, mods, easy, infinite: false, stats: {}, winKills: 0, winT: 0,
+    hpMul: map.diff * (easy ? 0.8 : 1), spdMul: mods.enemySpd || 1,
+    dmgMul: (1 + (map.diff - 1) * 0.5) * (easy ? 0.75 : 1), xpMul: mods.xp || 1 };
+  buildGround(map);
   player = newPlayer(type);
   applyMeta(player);
+  if (easy) { player.maxHp += 20; player.hp = player.maxHp; }
+  if (mods.dmg) player.dmgMul *= mods.dmg;
+  if (mods.hp) { player.maxHp = Math.round(player.maxHp * mods.hp); player.hp = player.maxHp; }
+  if (mods.relic) { const id = pick(Object.keys(RELICS)); player.relics[id] = true; RELICS[id].apply(player); }
   musicStep = 0;
   T = 0; kills = 0; spawnT = 0; nextElite = 50; nextHorde = 75; bossIdx = 0; miniIdx = 0; pendingRelic = 0; won = false; winAt = -1;
+  nextInfBoss = 0; nextInfMini = 0;
   enemies = []; bullets = []; gems = []; fx = []; nums = []; zones = []; pendingLv = 0; uid = 0; hurtFlash = 0;
   lastHudLv = -1; lastHudKills = -1;
-  $('menu').classList.remove('show'); $('over').classList.remove('show');
+  tut.on = mode === 'normal' && !load('elementa.tut', false); tut.step = 0; tut.t = 0; tut.moved = 0;
+  for (const id of ['menu', 'over', 'daily']) $(id).classList.remove('show');
   $('hud').style.display = 'flex';
-  updateHud();
+  updateHud(); tutShow();
+  if (mode === 'daily') banner('Desafío: ' + (opts.modName || '') + '. ¡Sobrevive 5 minutos!');
+  else if (mapI > 0) banner(map.name);
   state = 'play'; resetClock();
 }
 function togglePause() {
@@ -1779,24 +2098,198 @@ function togglePause() {
 function gameOver(win) {
   state = 'over'; joy.on = false;
   render();
-  const best = load('elementa.best', null);
-  const rec = { t: T, lv: player.level, win };
-  const isBest = !best || (win && !best.win) || (win === best.win && T > best.t);
-  if (isBest) save('elementa.best', rec);
-  const newChar = win && load('elementa.unlocked', []).indexOf('elec') === -1;
-  if (win) unlock('elec');
-  const coins = runCoins(win), m = meta();
-  m.coins += coins; save('elementa.meta', m);
+  tut.on = false; tutShow();
+  const p = player, map = MAPS[run.map], lines = [];
+  let title = win ? '¡Victoria!' : 'Derrota', coins;
+  if (run.infinite) {
+    title = 'Fin del modo infinito';
+    coins = Math.floor(((kills - run.winKills) / 4 + (T - run.winT) / 10) * map.diff);
+    if (T > load('elementa.bestInf', 0)) { save('elementa.bestInf', T); lines.push('<span style="color:var(--gold)">¡Nuevo récord infinito!</span>'); }
+  } else {
+    coins = Math.floor(runCoins(win) * map.diff);
+    if (run.mode === 'normal') {
+      const best = load('elementa.best', null);
+      const isBest = !best || (win && !best.win) || (win === best.win && T > best.t);
+      if (isBest) { save('elementa.best', { t: T, lv: p.level, win }); lines.push('<span style="color:var(--gold)">¡Nuevo récord!</span>'); }
+      if (win) {
+        if (load('elementa.unlocked', []).indexOf('elec') === -1) lines.push('<span style="color:var(--elec)">¡Desbloqueaste a Voltín (Eléctrico)!</span>');
+        unlock('elec');
+        if (run.map + 1 < MAPS.length && mapsOpen() < run.map + 2) {
+          save('elementa.maps', run.map + 2);
+          lines.push('<span style="color:var(--gold)">¡Nuevo mapa: ' + MAPS[run.map + 1].name + '!</span>');
+        }
+      }
+    } else {
+      title = win ? '¡Desafío completado!' : 'Desafío fallido';
+      if (win && !dailyDone()) {
+        coins += DAILY_REWARD; save('elementa.daily', todayKey());
+        lines.push('<span style="color:var(--gold)">Premio del desafío diario incluido</span>');
+      }
+    }
+  }
+  const m = meta(); m.coins += coins; save('elementa.meta', m);
+  finishRunStats(win);
   sfx(win ? 'win' : 'lose');
-  $('overTitle').textContent = win ? '¡Victoria!' : 'Derrota';
-  $('overStats').innerHTML = 'Tiempo ' + fmt(T) + '<br>Nivel ' + player.level + '<br>Derrotados ' + kills +
-    '<br><span style="color:var(--gold)"><span class="coin"></span> +' + coins + ' monedas</span>' + (isBest ? '<br><span style="color:var(--gold)">¡Nuevo récord!</span>' : '') +
-    (newChar ? '<br><span style="color:var(--elec)">¡Desbloqueaste a Voltín (Eléctrico)!</span>' : '');
+  if (missionsReady()) lines.push('<span style="color:var(--gold)">¡Tienes misiones para reclamar!</span>');
+  $('overTitle').textContent = title;
+  $('overStats').innerHTML = 'Tiempo ' + fmt(T) + '<br>Nivel ' + p.level + '<br>Derrotados ' + kills +
+    '<br><span style="color:var(--gold)"><span class="coin"></span> +' + coins + ' monedas</span>' + lines.map((l) => '<br>' + l).join('');
+  $('btnInf').style.display = win && run.mode === 'normal' && !run.infinite ? '' : 'none';
   $('over').classList.add('show');
+}
+// Modo infinito: después de ganar, seguir hasta caer
+function startInfinite() {
+  $('over').classList.remove('show');
+  run.infinite = true; run.winKills = kills; run.winT = T;
+  won = false; winAt = -1; nextInfBoss = T + 120; nextInfMini = T + 60;
+  banner('¡Modo infinito! Aguanta todo lo que puedas');
+  state = 'play'; resetClock();
+}
+
+// ---------- Tutorial (solo la primera vez) ----------
+const tut = { on: false, step: 0, t: 0, moved: 0 };
+const TUT_TEXT = [
+  'Arrastra el dedo por la pantalla para moverte',
+  'Tu criatura ataca sola. ¡Acércate a los enemigos!',
+  'Recoge los cristales para subir de nivel',
+  '¡Bien! Sobrevive 8 minutos y vence al jefe final',
+];
+function tutShow() {
+  const h = $('hint');
+  if (!tut.on) { h.classList.remove('show'); return; }
+  h.textContent = TUT_TEXT[tut.step]; h.classList.add('show');
+}
+function tutUpdate(dt) {
+  if (!tut.on) return;
+  tut.t += dt;
+  const next = () => { tut.step++; tut.t = 0; tutShow(); };
+  if (tut.step === 0) { if (player.moving) tut.moved += dt; if (tut.moved > 1.2) next(); }
+  else if (tut.step === 1) { if (kills >= 3 || tut.t > 6) next(); }
+  else if (tut.step === 2) { if (player.level >= 2) next(); }
+  else if (tut.t > 4) { tut.on = false; save('elementa.tut', true); tutShow(); }
+}
+
+// ---------- Desafío diario ----------
+function todayKey() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function dailyDone() { return load('elementa.daily', '') === todayKey(); }
+function dailyInfo() {
+  // mismo desafío para todos los jugadores ese día (sale de la fecha)
+  let s = 7;
+  for (const ch of todayKey()) s = (s * 31 + ch.charCodeAt(0)) % 2147483647;
+  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  r(); r();
+  return { type: ['water', 'fire', 'plant'][(r() * 3) | 0], map: (r() * MAPS.length) | 0, mod: DAILY_MODS[(r() * DAILY_MODS.length) | 0] };
+}
+function openDaily() {
+  const d = dailyInfo(), st = STARTERS[d.type], sp = SPR[d.type], done = dailyDone();
+  drawFoot($('dailyCv'), sp.r[0], sp.w, sp.h);
+  $('dailyInfo').innerHTML = st.names[0] + ' <span class="badge b-' + d.type + '">' + TYPE_NAME[d.type] + '</span><br>' +
+    'Mapa: ' + MAPS[d.map].name + '<br><span style="color:var(--gold)">' + d.mod.name + '</span>: ' + d.mod.desc +
+    '<br><br>Meta: sobrevive 5 minutos<br>Premio: <span class="coin"></span> ' + DAILY_REWARD + ' monedas extra' +
+    (done ? '<br><span style="color:var(--plant)">✓ Ya lo completaste hoy (puedes jugarlo igual)</span>' : '');
+  $('dailyPlay').onclick = () => start(d.type, { mode: 'daily', map: d.map, mods: d.mod.apply, modName: d.mod.name });
+  $('daily').classList.add('show');
+}
+
+// ---------- Misiones ----------
+const MISSION_POOL = {
+  kills: { text: (n) => 'Derrota ' + n + ' enemigos', stat: 'kills', tiers: [150, 400, 1000], reward: [40, 80, 150] },
+  minis: { text: (n) => 'Derrota ' + n + ' minijefes', stat: 'minis', tiers: [2, 5, 10], reward: [50, 100, 180] },
+  chests: { text: (n) => 'Abre ' + n + ' cofres de minijefe', stat: 'chests', tiers: [2, 5, 10], reward: [50, 100, 180] },
+  evos: { text: (n) => 'Evoluciona ' + n + (n > 1 ? ' veces' : ' vez'), stat: 'evos', tiers: [1, 3, 6], reward: [40, 90, 160] },
+  fusions: { text: (n) => 'Crea ' + n + (n > 1 ? ' fusiones' : ' fusión') + ' de ataques', stat: 'fusions', tiers: [1, 2, 4], reward: [80, 140, 220] },
+  wins: { text: (n) => 'Gana ' + n + (n > 1 ? ' partidas' : ' partida'), stat: 'wins', tiers: [1, 2, 4], reward: [100, 150, 250] },
+  dailies: { text: (n) => 'Completa ' + n + (n > 1 ? ' desafíos diarios' : ' desafío diario'), stat: 'dailies', tiers: [1, 3, 7], reward: [60, 120, 250] },
+  survive: { text: (n) => 'Sobrevive ' + n + ' minutos en una partida', max: 'time', unit: 60, tiers: [3, 5, 8], reward: [40, 80, 150] },
+  level: { text: (n) => 'Llega al nivel ' + n + ' en una partida', max: 'level', tiers: [10, 20, 30], reward: [40, 90, 160] },
+};
+function missionsState() {
+  let s = load('elementa.missions', null);
+  if (!s || !s.list) {
+    s = { list: [], tiers: {} };
+    while (s.list.length < 3 && addMission(s));
+    save('elementa.missions', s);
+  }
+  return s;
+}
+function addMission(s) {
+  const ids = Object.keys(MISSION_POOL).filter((id) => !s.list.some((m) => m.id === id) && (s.tiers[id] || 0) < 3);
+  if (!ids.length) return false;
+  const id = pick(ids), def = MISSION_POOL[id], st = load('elementa.stats', {});
+  s.list.push({ id, tier: s.tiers[id] || 0, base: def.stat ? (st[def.stat] || 0) : 0, best: 0 });
+  return true;
+}
+function missionProgress(m) {
+  const def = MISSION_POOL[m.id], target = def.tiers[m.tier];
+  const cur = def.stat ? (load('elementa.stats', {})[def.stat] || 0) - m.base : Math.floor(m.best / (def.unit || 1));
+  return [Math.min(cur, target), target];
+}
+function missionsReady() { return missionsState().list.some((m) => { const [c, t] = missionProgress(m); return c >= t; }); }
+function finishRunStats(win) {
+  const st = load('elementa.stats', {}), r = run.stats;
+  for (const k of ['kills', 'minis', 'chests', 'evos', 'fusions']) st[k] = (st[k] || 0) + (r[k] || 0);
+  if (win && run.mode === 'normal' && !run.infinite) st.wins = (st.wins || 0) + 1;
+  if (win && run.mode === 'daily') st.dailies = (st.dailies || 0) + 1;
+  save('elementa.stats', st);
+  run.stats = {};
+  const s = missionsState();
+  for (const m of s.list) {
+    const def = MISSION_POOL[m.id];
+    if (def.max === 'time') m.best = Math.max(m.best, T);
+    if (def.max === 'level' && player) m.best = Math.max(m.best, player.level);
+  }
+  save('elementa.missions', s);
+}
+function openMissions() {
+  const s = missionsState(), list = $('missionList');
+  list.innerHTML = '';
+  if (!s.list.length) list.innerHTML = '<p>¡Completaste todas las misiones!</p>';
+  s.list.forEach((m, i) => {
+    const def = MISSION_POOL[m.id], [cur, target] = missionProgress(m), done = cur >= target;
+    const row = document.createElement('div'); row.className = 'card shop-row';
+    row.innerHTML = '<div style="flex:1"><div class="t">' + def.text(target) + '</div>' +
+      '<div class="bar"><i style="width:' + Math.round(100 * cur / target) + '%"></i></div>' +
+      '<div class="d">' + cur + ' / ' + target + '</div></div>';
+    const b = document.createElement('button'); b.className = 'btn buy';
+    b.innerHTML = '<span class="coin"></span> ' + def.reward[m.tier];
+    b.disabled = !done;
+    b.onclick = () => {
+      const s2 = missionsState(), mm = s2.list[i];
+      if (!mm || mm.id !== m.id) return;
+      const meta2 = meta(); meta2.coins += def.reward[m.tier]; save('elementa.meta', meta2);
+      s2.tiers[m.id] = m.tier + 1; s2.list.splice(i, 1); addMission(s2); save('elementa.missions', s2);
+      sfx('relic'); openMissions(); updateMenuCoins(); updateMenuBadges();
+    };
+    row.appendChild(b); list.appendChild(row);
+  });
+  $('missions').classList.add('show');
+}
+function updateMenuBadges() {
+  $('btnMissions').innerHTML = 'Misiones' + (missionsReady() ? ' <b class="dot"></b>' : '');
+  $('btnDaily').innerHTML = 'Desafío diario ' + (dailyDone() ? '✓' : '<b class="dot"></b>');
+}
+
+// ---------- Mapas en el menú ----------
+let mapIdx = Math.min(load('elementa.mapSel', 0), MAPS.length - 1);
+function mapsOpen() { let n = load('elementa.maps', 1); if (hasWon() && n < 2) n = 2; return Math.min(n, MAPS.length); }
+function selectMap(delta) {
+  mapIdx = (mapIdx + delta + MAPS.length) % MAPS.length;
+  save('elementa.mapSel', mapIdx);
+  const open = mapIdx < mapsOpen(), m = MAPS[mapIdx];
+  $('mapName').textContent = (open ? '' : '🔒 ') + m.name;
+  $('mapInfo').textContent = open ? m.desc : 'Gana en ' + MAPS[mapIdx - 1].name + ' para desbloquearlo';
+  buildGround(m);
+  updatePlayBtn();
+}
+function updatePlayBtn() {
+  const ok = isOpen(TYPES[selIdx]) && mapIdx < mapsOpen();
+  $('btnPlay').disabled = !ok;
+  $('btnPlay').textContent = ok ? 'JUGAR' : 'BLOQUEADO';
 }
 $('btnPause').addEventListener('click', togglePause);
 $('btnResume').addEventListener('click', togglePause);
-$('btnQuit').addEventListener('click', showMenu);
+$('btnQuit').addEventListener('click', () => { finishRunStats(false); showMenu(); });
+$('btnInf').addEventListener('click', startInfinite);
 $('btnAgain').addEventListener('click', showMenu);
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
 
@@ -1845,6 +2338,11 @@ buildSprites(); buildFont(); buildGround(); buildMenu();
 if (location.hostname === 'localhost') window.__dev = {
   xp: (v) => gainXp(v), get player() { return player; }, SPR,
   sound: () => { audioInit(); Object.keys(SFX).forEach((k) => SFX[k]()); const was = audio.ctx.state; musicNext = 0; for (let i = 0; i < 3; i++) { const s = audio.ctx.state; Object.defineProperty(audio.ctx, 'state', { value: 'running', configurable: true }); musicTick(); Object.defineProperty(audio.ctx, 'state', { value: s, configurable: true }); } return [was, musicStep]; },
+  get run() { return run; },
+  levelUp: () => { pendingLv = 1; openLevelUp(); },
+  win: () => gameOver(true),
+  tut: () => tut,
+  start: (t, o) => start(t, o),
   coins: (n) => { const m = meta(); m.coins += n; save('elementa.meta', m); updateMenuCoins(); },
   relic: (id) => { player.relics[id] = true; RELICS[id].apply(player); },
   chests: () => gems.filter((g) => g.chest).length,

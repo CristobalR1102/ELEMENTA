@@ -1,6 +1,6 @@
 // Guarda el juego en el teléfono para jugar sin internet.
 // Al publicar una versión nueva, cambia VERSION para que los celulares la descarguen.
-const VERSION = 'elementa-v8';
+const VERSION = 'elementa-v9';
 const ART = ['water1', 'water2', 'water3', 'fire1', 'fire2', 'fire3', 'plant1', 'plant2', 'plant3', 'elec2', 'elec3'];
 const FILES = ['./', 'index.html', 'game.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   ...ART.map((k) => 'sprites/' + k + '.png')];

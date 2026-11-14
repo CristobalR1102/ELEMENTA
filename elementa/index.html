@@ -85,7 +85,31 @@
   .dots i.on { background:var(--gold); }
   .btn.play { font-size:20px; padding:14px 0; width:240px; letter-spacing:2px; box-shadow:0 4px 0 #b8452f; }
   .btn.play:active { transform:translateY(3px); box-shadow:0 1px 0 #b8452f; }
-  .menu-row { display:flex; gap:8px; width:300px; max-width:100%; }
+  .menu-row { display:flex; gap:6px; width:320px; max-width:100%; }
+  .menu-row .btn { font-size:12px !important; }
+  /* el menú se centra, pero si no cabe en pantallas bajas se puede desplazar sin cortar la parte de arriba */
+  #menu { justify-content:flex-start; gap:8px; }
+  #menu > :first-child { margin-top:auto; }
+  #menu > :last-child { margin-bottom:auto; }
+  .vitrina { height:130px; }
+  .vitrina canvas { width:120px; height:120px; }
+  .s-desc { min-height:0; }
+  .map-sel { display:flex; align-items:center; gap:8px; }
+  .map-text { min-width:190px; text-align:center; }
+  #mapName { font-size:14px; text-shadow:0 2px 0 #000; }
+  .map-info { font-size:11px; color:#cfd6e3; font-weight:400; text-shadow:0 1px 0 #000; }
+  .arrow.sm { width:32px; height:32px; font-size:16px; }
+  .btn.daily { width:240px; padding:9px 0; font-size:14px; background:rgba(65,166,246,.18); border-color:var(--water); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ff5a5a; vertical-align:2px; margin-left:3px; }
+  .card.fuse { border-color:var(--gold); box-shadow:0 0 12px rgba(255,205,117,.35); }
+  .bar { height:6px; background:#141821; border-radius:3px; margin-top:6px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--gold); }
+  #hint { position:fixed; left:16px; right:16px; bottom:calc(18% + env(safe-area-inset-bottom)); display:none; text-align:center;
+    font-size:15px; padding:10px 12px; border-radius:12px; border:2px solid var(--gold); background:rgba(14,18,30,.88);
+    pointer-events:none; animation:pulse 1.4s ease-in-out infinite; z-index:5; }
+  .overlay { z-index:10; }
+  #hint.show { display:block; }
+  @keyframes pulse { 50% { transform:scale(1.04); } }
   .coin { display:inline-block; width:11px; height:11px; border-radius:50%; background:#ffcd75; box-shadow:inset -2px -2px 0 #e0a040, 0 0 0 1.5px #5d3a1a; vertical-align:-1px; }
   .coins-big { font-size:18px; color:var(--gold); }
   .shop-row { align-items:center; }
@@ -120,14 +144,41 @@
   <div id="sBadge"></div>
   <div class="s-desc" id="sDesc"></div>
   <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+  <div class="map-sel">
+    <button class="arrow sm" id="prevM" aria-label="Mapa anterior">‹</button>
+    <div class="map-text"><div id="mapName"></div><div class="map-info" id="mapInfo"></div></div>
+    <button class="arrow sm" id="nextM" aria-label="Mapa siguiente">›</button>
+  </div>
   <button class="btn main play" id="btnPlay">JUGAR</button>
+  <button class="btn daily" id="btnDaily">Desafío diario</button>
   <div class="menu-row">
     <button class="btn" id="btnShop">Mejoras</button>
+    <button class="btn" id="btnMissions">Misiones</button>
     <button class="btn" id="btnDex">Criaturas</button>
     <button class="btn" id="btnSet">Ajustes</button>
   </div>
   <div class="record"><span id="best"></span> · <span id="menuCoins"></span></div>
 </div>
+
+<div class="overlay" id="daily">
+  <h2>Desafío diario</h2>
+  <p>Un desafío nuevo cada día, igual para todos los jugadores.</p>
+  <canvas id="dailyCv" width="108" height="108" style="width:108px;height:108px"></canvas>
+  <div class="stats" id="dailyInfo"></div>
+  <div class="row">
+    <button class="btn main" id="dailyPlay">Jugar</button>
+    <button class="btn" id="dailyBack">Volver</button>
+  </div>
+</div>
+
+<div class="overlay" id="missions">
+  <h2>Misiones</h2>
+  <p>Completa misiones para ganar monedas. Cuentan todas tus partidas.</p>
+  <div class="cards" id="missionList"></div>
+  <button class="btn" id="missionsBack">Volver</button>
+</div>
+
+<div id="hint"></div>
 
 <div class="overlay" id="shop">
   <h2>Mejoras</h2>
@@ -172,7 +223,10 @@
 <div class="overlay" id="over">
   <h2 id="overTitle">Derrota</h2>
   <div class="stats" id="overStats"></div>
-  <button class="btn main" id="btnAgain">Jugar otra vez</button>
+  <div class="row">
+    <button class="btn main" id="btnInf">Seguir: modo infinito</button>
+    <button class="btn" id="btnAgain">Volver al menú</button>
+  </div>
 </div>
 
 <script src="game.js"></script>
