@@ -904,12 +904,14 @@ function hurt(e, base, atkType, kbx, kby) {
   const crit = player.relics.critico && Math.random() < 0.2;
   const d = Math.max(1, Math.round(base * player.dmgMul * m * stab * (crit ? 2.5 : 1) * rand(0.9, 1.1)));
   e.hp -= d; e.flash = 0.08;
+  sfx('hit', 70);
   e.kx += kbx * e.kbRes; e.ky += kby * e.kbRes;
   addNum(e.x, e.y - e.r - 4, d, crit || m > 1 ? 1 : m < 1 ? 2 : 0);
   if (e.hp <= 0) kill(e);
 }
 function kill(e) {
   e.dead = true; kills++;
+  sfx('kill', 60);
   addFx('puff', e.x, e.y, e.r, 0.25, '#f4f4f4');
   if (player.relics.robo) player.hp = Math.min(player.maxHp, player.hp + 1);
   if (e.mini) { gems.push({ x: e.x, y: e.y, v: 0, chest: true, mag: false }); banner('¡Recoge el cofre!'); }
@@ -1059,8 +1061,8 @@ function update(dt) {
     e.flash -= dt;
     if (d < e.r + STAGE_RADIUS[p.stage] && p.inv <= 0) {
       const m = eff(e.type, p.type), mm = m > 1 ? 1.5 : m < 1 ? 0.66 : 1;
-      if (p.relics.escudo && p.shieldT <= 0) { p.shieldT = 8; p.inv = 0.5; addFx('ring', p.x, p.y, 20, 0.3, '#a5f0ff'); }
-      else { p.hp -= e.dmg * mm * scaleDmg; p.inv = 0.5; hurtFlash = 0.15; }
+      if (p.relics.escudo && p.shieldT <= 0) { p.shieldT = 8; p.inv = 0.5; addFx('ring', p.x, p.y, 20, 0.3, '#a5f0ff'); sfx('block'); }
+      else { p.hp -= e.dmg * mm * scaleDmg; p.inv = 0.5; hurtFlash = 0.15; sfx('hurt', 150); }
     }
   }
   // separación suave entre enemigos de la misma celda
@@ -1088,7 +1090,7 @@ function update(dt) {
     if (!g.mag && d < p.magnet) g.mag = true;
     if (g.mag) { const sp = 160 * dt / (d || 1); g.x += dx * Math.min(1, sp); g.y += dy * Math.min(1, sp); }
     if (d < 7) {
-      if (g.chest) pendingRelic++;
+      if (g.chest) { pendingRelic++; sfx('chest'); }
       else if (g.berry) { p.hp = Math.min(p.maxHp, p.hp + 30); addFx('puff', p.x, p.y, 8, 0.3, '#ff8fa3'); }
       else gainXp(g.v);
       gems[i] = gems[gems.length - 1]; gems.pop();
@@ -1121,7 +1123,10 @@ function update(dt) {
 
   spawner(dt);
 
-  if (p.hp <= 0) return gameOver(false);
+  if (p.hp <= 0) {
+    if (p.revives > 0) revive(); // aquí se podrá ofrecer también revivir viendo un anuncio
+    else return gameOver(false);
+  }
   if (won && T >= winAt) return gameOver(true);
   if (pendingRelic > 0) openRelic();
   else if (pendingLv > 0) openLevelUp();
@@ -1152,13 +1157,14 @@ function spawner(dt) {
   if (miniIdx < MINI_TIMES.length && T >= MINI_TIMES[miniIdx]) {
     const kind = pick(['charco', 'brasa', 'hongo', 'chispa', 'piedrin']);
     spawnEnemy(kind, { scale: 2, hpMul: 22 + miniIdx * 6, xpMul: 15, dmgMul: 2, spdMul: 0.95, mini: true });
-    banner('¡Minijefe! Derrótalo y abre su cofre');
+    banner('¡Minijefe! Derrótalo y abre su cofre'); sfx('boss');
     miniIdx++;
   }
   if (bossIdx < BOSS_TIMES.length && T >= BOSS_TIMES[bossIdx]) {
     const final = bossIdx === BOSS_TIMES.length - 1;
     const kind = pick(['charco', 'brasa', 'hongo', 'chispa']);
     spawnEnemy(kind, { scale: 3, hpMul: final ? 75 : 35, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final });
+    sfx('boss');
     banner(final ? '¡Jefe final: ' + TYPE_NAME[ENEMY[kind].type] + '!' : '¡Apareció un jefe de tipo ' + TYPE_NAME[ENEMY[kind].type] + '!');
     bossIdx++;
   }
@@ -1166,7 +1172,7 @@ function spawner(dt) {
 
 function gainXp(v) {
   const p = player;
-  p.xp += v;
+  p.xp += v * (p.xpMul || 1);
   while (p.xp >= p.xpNext) { p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(6 + p.level * 4 + p.level * p.level * 0.15); pendingLv++; }
 }
 
@@ -1188,7 +1194,7 @@ function options() {
 }
 function nova() {
   const p = player, dmg = 40 + 4 * p.level;
-  addFx('ring', p.x, p.y, 130, 0.5, TYPE_COL[p.type]);
+  addFx('ring', p.x, p.y, 130, 0.5, TYPE_COL[p.type]); sfx('boom');
   for (const e of enemies) if (!e.dead && onScreen(e)) hurt(e, dmg, p.type, 0, 0);
 }
 function openRelic() {
@@ -1206,7 +1212,7 @@ function openRelic() {
     b.innerHTML = '<div><div class="t">' + r.name + '<span class="badge b-new">' + (r.epic ? 'ÉPICO' : 'RELIQUIA') +
       '</span></div><div class="d">' + r.desc + '</div></div>';
     b.onclick = () => {
-      if (RELICS[id]) { player.relics[id] = true; RELICS[id].apply(player); banner('Reliquia: ' + r.name); }
+      if (RELICS[id]) { player.relics[id] = true; RELICS[id].apply(player); banner('Reliquia: ' + r.name); sfx('relic'); }
       else player.hp = player.maxHp;
       pendingRelic--;
       nextScreen();
@@ -1223,7 +1229,7 @@ function nextScreen() {
 }
 function openLevelUp() {
   state = 'levelup'; joy.on = false;
-  $('lvTitle').textContent = '¡Subiste de nivel!';
+  $('lvTitle').textContent = '¡Subiste de nivel!'; sfx('level');
   const box = $('choices'); box.innerHTML = '';
   const full = player.moves.length >= MAX_MOVES;
   $('lvMoves').innerHTML = 'Nivel ' + player.level + ' · Ataques ' + player.moves.length + '/' + MAX_MOVES +
@@ -1262,7 +1268,7 @@ function choose(o) {
     const hp = p.stage === 1 ? 30 : 50;
     p.maxHp += hp; p.hp = p.maxHp; p.dmgMul += p.stage === 1 ? 0.15 : 0.25; p.speed += 3;
     addFx('ring', p.x, p.y, 60, 0.6, '#ffcd75');
-    banner('¡' + before + ' evolucionó en ' + pname(p) + '!');
+    banner('¡' + before + ' evolucionó en ' + pname(p) + '!'); sfx('evolve');
     markSeen(p.type, p.stage);
   }
   updateHud();
@@ -1455,6 +1461,141 @@ function updateHud() {
   if (lvKey !== lastHudLv) { lastHudLv = lvKey; $('hudLv').textContent = pname(player) + ' Nv ' + player.level; }
   if (kills !== lastHudKills) { lastHudKills = kills; $('hudKills').textContent = kills + ' ☠'; }
 }
+
+// ---------- Sonido ----------
+// Todo se genera con el sintetizador del navegador: no hay archivos de audio que descargar.
+const audio = { ctx: null, master: null, musicGain: null, noiseBuf: null, last: {},
+  sfx: load('elementa.sfx', true), music: load('elementa.music', true) };
+function audioInit() {
+  if (audio.ctx) { if (audio.ctx.state === 'suspended') audio.ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  audio.ctx = new AC();
+  audio.master = audio.ctx.createGain(); audio.master.gain.value = 0.35; audio.master.connect(audio.ctx.destination);
+  audio.musicGain = audio.ctx.createGain(); audio.musicGain.gain.value = 0.16; audio.musicGain.connect(audio.master);
+  const len = audio.ctx.sampleRate * 0.4;
+  audio.noiseBuf = audio.ctx.createBuffer(1, len, audio.ctx.sampleRate);
+  const d = audio.noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+}
+// iPhone solo permite sonido después de que el jugador toca la pantalla
+window.addEventListener('pointerdown', audioInit);
+const audioOn = () => audio.ctx && audio.ctx.state === 'running';
+function tone(freq, dur, type, vol, slide, delay, dest) {
+  const c = audio.ctx, t = c.currentTime + (delay || 0);
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq * slide), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(dest || audio.master); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(dur, vol) {
+  const c = audio.ctx, t = c.currentTime, s = c.createBufferSource(), g = c.createGain();
+  s.buffer = audio.noiseBuf;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  s.connect(g); g.connect(audio.master); s.start(t); s.stop(t + dur);
+}
+const arp = (notes, step, type, vol) => notes.forEach((f, i) => tone(f, step * 1.6, type, vol, 0, i * step));
+const SFX = {
+  hit: () => tone(320, 0.05, 'square', 0.04, 0.6),
+  kill: () => tone(480, 0.08, 'triangle', 0.07, 1.8),
+  hurt: () => { tone(170, 0.2, 'sawtooth', 0.12, 0.45); noise(0.08, 0.06); },
+  block: () => tone(1200, 0.12, 'sine', 0.08, 0.7),
+  level: () => arp([523, 659, 784, 1047], 0.06, 'square', 0.06),
+  evolve: () => arp([392, 523, 659, 784, 1047, 1319], 0.09, 'triangle', 0.12),
+  chest: () => arp([659, 880, 1175], 0.07, 'square', 0.07),
+  relic: () => arp([784, 988, 1319, 1568], 0.06, 'triangle', 0.1),
+  boss: () => { tone(110, 0.7, 'sawtooth', 0.12, 0.6); noise(0.4, 0.05); },
+  boom: () => { noise(0.35, 0.12); tone(90, 0.3, 'sine', 0.15, 0.5); },
+  revive: () => arp([262, 392, 523, 784], 0.1, 'triangle', 0.12),
+  win: () => arp([523, 659, 784, 1047, 784, 1047], 0.13, 'square', 0.08),
+  lose: () => arp([392, 330, 262, 196], 0.16, 'triangle', 0.1),
+};
+function sfx(name, minGapMs) {
+  if (!audio.sfx || !audioOn()) return;
+  const now = performance.now();
+  if (now - (audio.last[name] || 0) < (minGapMs || 0)) return;
+  audio.last[name] = now;
+  SFX[name]();
+}
+// Música: un bucle original en escala pentatónica, generado una vez con notas al azar
+const SCALE = [0, 3, 5, 7, 10, 12, 15];
+const ROOTS = [57, 53, 48, 55];
+const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const MELODY = (() => {
+  let s = 1234;
+  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  return Array.from({ length: 32 }, (_, i) => (i % 8 === 0 || r() < 0.5) ? (r() * SCALE.length) | 0 : -1);
+})();
+let musicNext = 0, musicStep = 0;
+function musicTick() {
+  if (!audio.music || !audioOn()) return;
+  const c = audio.ctx, beat = 0.22;
+  if (musicNext < c.currentTime) musicNext = c.currentTime + 0.05;
+  while (musicNext < c.currentTime + 0.25) {
+    const s = musicStep % 32, root = ROOTS[s >> 3], at = musicNext - c.currentTime;
+    if (s % 4 === 0) tone(mtof(root - 12), beat * 3.5, 'triangle', 0.3, 0, at, audio.musicGain);
+    if (MELODY[s] >= 0) tone(mtof(root + 12 + SCALE[MELODY[s]]), beat * 0.9, 'square', 0.07, 0, at, audio.musicGain);
+    musicNext += beat; musicStep++;
+  }
+}
+
+// ---------- Monedas y mejoras permanentes ----------
+const META_UP = {
+  vida: { name: 'Vida', desc: '+12 de vida inicial', max: 5, cost: (l) => 40 + l * 45 },
+  fuerza: { name: 'Fuerza', desc: '+6% de daño', max: 5, cost: (l) => 50 + l * 55 },
+  velocidad: { name: 'Velocidad', desc: '+4% de velocidad', max: 5, cost: (l) => 40 + l * 40 },
+  iman: { name: 'Imán', desc: '+15% radio para recoger cristales', max: 5, cost: (l) => 30 + l * 35 },
+  sabiduria: { name: 'Sabiduría', desc: '+8% de experiencia', max: 5, cost: (l) => 60 + l * 60 },
+  revivir: { name: 'Segunda Oportunidad', desc: 'Revives una vez por partida con 50% de vida', max: 1, cost: () => 350 },
+};
+function meta() { const m = Object.assign({ coins: 0, up: {} }, load('elementa.meta', {})); m.up = m.up || {}; return m; }
+function applyMeta(p) {
+  const u = meta().up;
+  p.maxHp += 12 * (u.vida || 0); p.hp = p.maxHp;
+  p.dmgMul += 0.06 * (u.fuerza || 0);
+  p.speed *= 1 + 0.04 * (u.velocidad || 0);
+  p.magnet *= 1 + 0.15 * (u.iman || 0);
+  p.xpMul = 1 + 0.08 * (u.sabiduria || 0);
+  p.revives = u.revivir ? 1 : 0;
+}
+function runCoins(win) { return Math.floor(kills / 4 + T / 10 + (win ? 150 : 0)); }
+function openShop() {
+  const m = meta(), list = $('shopList');
+  $('shopCoins').innerHTML = '<span class="coin"></span> ' + m.coins + ' monedas';
+  list.innerHTML = '';
+  for (const id in META_UP) {
+    const u = META_UP[id], lv = m.up[id] || 0, maxed = lv >= u.max, cost = u.cost(lv);
+    const row = document.createElement('div'); row.className = 'card shop-row';
+    row.innerHTML = '<div style="flex:1"><div class="t">' + u.name + ' <span class="badge b-pas">' + (u.max > 1 ? 'Nv ' + lv + '/' + u.max : (lv ? 'LISTO' : 'ÚNICA')) +
+      '</span></div><div class="d">' + u.desc + '</div></div>';
+    const b = document.createElement('button'); b.className = 'btn buy';
+    b.innerHTML = maxed ? 'Máx' : '<span class="coin"></span> ' + cost;
+    b.disabled = maxed || m.coins < cost;
+    b.onclick = () => {
+      const mm = meta(), l2 = mm.up[id] || 0, c2 = u.cost(l2);
+      if (l2 >= u.max || mm.coins < c2) return;
+      mm.coins -= c2; mm.up[id] = l2 + 1; save('elementa.meta', mm);
+      sfx('relic'); openShop(); updateMenuCoins();
+    };
+    row.appendChild(b); list.appendChild(row);
+  }
+  $('shop').classList.add('show');
+}
+function updateMenuCoins() { const el = $('menuCoins'); if (el) el.innerHTML = '<span class="coin"></span> ' + meta().coins; }
+// Revivir: empuja y daña a los enemigos cercanos para darte un respiro
+function revive() {
+  const p = player;
+  p.revives--; p.hp = Math.round(p.maxHp * 0.5); p.inv = 2.5; hurtFlash = 0;
+  addFx('ring', p.x, p.y, 90, 0.6, '#ffcd75');
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d < 90) { e.kx += dx / d * 260 * e.kbRes; e.ky += dy / d * 260 * e.kbRes; hurt(e, 30, p.type, 0, 0); }
+  }
+  banner('¡Segunda oportunidad!'); sfx('revive');
+}
+
 // ---------- Menú principal ----------
 const TYPES = ['water', 'fire', 'plant', 'elec'];
 // Voltín se desbloquea al ganar una partida (si ya ganaste antes, queda desbloqueado de inmediato)
@@ -1486,7 +1627,8 @@ function drawFoot(canvas, img, w, h) {
 function showMenu() {
   state = 'menu';
   $('hud').style.display = 'none';
-  for (const id of ['levelup', 'pause', 'over', 'dex', 'settings']) $(id).classList.remove('show');
+  for (const id of ['levelup', 'pause', 'over', 'dex', 'settings', 'shop']) $(id).classList.remove('show');
+  updateMenuCoins();
   $('menu').classList.add('show');
   const best = load('elementa.best', null);
   $('best').innerHTML = best
@@ -1527,6 +1669,12 @@ function buildMenu() {
   $('dexBack').onclick = () => $('dex').classList.remove('show');
   $('btnSet').onclick = () => $('settings').classList.add('show');
   $('setBack').onclick = () => $('settings').classList.remove('show');
+  $('btnShop').onclick = openShop;
+  $('shopBack').onclick = () => $('shop').classList.remove('show');
+  const sf = $('optSfx'), mu = $('optMusic');
+  sf.checked = audio.sfx; mu.checked = audio.music;
+  sf.onchange = () => { audio.sfx = sf.checked; save('elementa.sfx', audio.sfx); };
+  mu.onchange = () => { audio.music = mu.checked; save('elementa.music', audio.music); };
   const lp = $('lowPower'); lp.checked = lowPower;
   lp.onchange = () => { lowPower = lp.checked; save('elementa.low', lowPower); };
 }
@@ -1607,6 +1755,8 @@ function drawShowcase() {
 }
 function start(type) {
   player = newPlayer(type);
+  applyMeta(player);
+  musicStep = 0;
   T = 0; kills = 0; spawnT = 0; nextElite = 50; nextHorde = 75; bossIdx = 0; miniIdx = 0; pendingRelic = 0; won = false; winAt = -1;
   enemies = []; bullets = []; gems = []; fx = []; nums = []; zones = []; pendingLv = 0; uid = 0; hurtFlash = 0;
   lastHudLv = -1; lastHudKills = -1;
@@ -1635,8 +1785,12 @@ function gameOver(win) {
   if (isBest) save('elementa.best', rec);
   const newChar = win && load('elementa.unlocked', []).indexOf('elec') === -1;
   if (win) unlock('elec');
+  const coins = runCoins(win), m = meta();
+  m.coins += coins; save('elementa.meta', m);
+  sfx(win ? 'win' : 'lose');
   $('overTitle').textContent = win ? '¡Victoria!' : 'Derrota';
-  $('overStats').innerHTML = 'Tiempo ' + fmt(T) + '<br>Nivel ' + player.level + '<br>Derrotados ' + kills + (isBest ? '<br><span style="color:var(--gold)">¡Nuevo récord!</span>' : '') +
+  $('overStats').innerHTML = 'Tiempo ' + fmt(T) + '<br>Nivel ' + player.level + '<br>Derrotados ' + kills +
+    '<br><span style="color:var(--gold)"><span class="coin"></span> +' + coins + ' monedas</span>' + (isBest ? '<br><span style="color:var(--gold)">¡Nuevo récord!</span>' : '') +
     (newChar ? '<br><span style="color:var(--elec)">¡Desbloqueaste a Voltín (Eléctrico)!</span>' : '');
   $('over').classList.add('show');
 }
@@ -1668,6 +1822,7 @@ function loop(ts) {
   const dt = last ? Math.min(0.05, (ts - last) / 1000) : 1 / 60;
   last = ts;
   update(dt);
+  musicTick();
   if (state === 'play' || state === 'levelup') render();
   updateHud();
 }
@@ -1689,6 +1844,8 @@ buildSprites(); buildFont(); buildGround(); buildMenu();
 // Atajo de prueba solo en tu PC (localhost): __dev.xp(500) da experiencia
 if (location.hostname === 'localhost') window.__dev = {
   xp: (v) => gainXp(v), get player() { return player; }, SPR,
+  sound: () => { audioInit(); Object.keys(SFX).forEach((k) => SFX[k]()); const was = audio.ctx.state; musicNext = 0; for (let i = 0; i < 3; i++) { const s = audio.ctx.state; Object.defineProperty(audio.ctx, 'state', { value: 'running', configurable: true }); musicTick(); Object.defineProperty(audio.ctx, 'state', { value: s, configurable: true }); } return [was, musicStep]; },
+  coins: (n) => { const m = meta(); m.coins += n; save('elementa.meta', m); updateMenuCoins(); },
   relic: (id) => { player.relics[id] = true; RELICS[id].apply(player); },
   chests: () => gems.filter((g) => g.chest).length,
   openRelic: () => { pendingRelic = 1; openRelic(); },

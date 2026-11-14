@@ -85,7 +85,12 @@
   .dots i.on { background:var(--gold); }
   .btn.play { font-size:20px; padding:14px 0; width:240px; letter-spacing:2px; box-shadow:0 4px 0 #b8452f; }
   .btn.play:active { transform:translateY(3px); box-shadow:0 1px 0 #b8452f; }
-  .menu-row { display:flex; gap:10px; width:240px; }
+  .menu-row { display:flex; gap:8px; width:300px; max-width:100%; }
+  .coin { display:inline-block; width:11px; height:11px; border-radius:50%; background:#ffcd75; box-shadow:inset -2px -2px 0 #e0a040, 0 0 0 1.5px #5d3a1a; vertical-align:-1px; }
+  .coins-big { font-size:18px; color:var(--gold); }
+  .shop-row { align-items:center; }
+  .btn.buy { flex:none; padding:8px 12px; font-size:13px; background:var(--gold); color:#141821; border-color:var(--gold); white-space:nowrap; }
+  .btn.buy:disabled { background:#3a4560; border-color:#3a4560; color:#94a0b8; }
   .menu-row .btn { flex:1; padding:10px 0; font-size:13px; background:rgba(31,37,51,.92); }
   .record { font-size:11px; color:#cfd6e3; background:rgba(14,18,30,.8); border:2px solid var(--line); border-radius:10px; padding:6px 12px; line-height:1.6; }
   .dex { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; width:100%; max-width:340px; }
@@ -117,10 +122,19 @@
   <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
   <button class="btn main play" id="btnPlay">JUGAR</button>
   <div class="menu-row">
+    <button class="btn" id="btnShop">Mejoras</button>
     <button class="btn" id="btnDex">Criaturas</button>
     <button class="btn" id="btnSet">Ajustes</button>
   </div>
-  <div class="record" id="best"></div>
+  <div class="record"><span id="best"></span> · <span id="menuCoins"></span></div>
+</div>
+
+<div class="overlay" id="shop">
+  <h2>Mejoras</h2>
+  <div class="coins-big" id="shopCoins"></div>
+  <p>Mejoras permanentes para todas tus partidas. Ganas monedas al jugar.</p>
+  <div class="cards" id="shopList"></div>
+  <button class="btn" id="shopBack">Volver</button>
 </div>
 
 <div class="overlay" id="dex">
@@ -132,6 +146,8 @@
 
 <div class="overlay" id="settings">
   <h2>Ajustes</h2>
+  <label class="toggle"><input type="checkbox" id="optSfx"> Efectos de sonido</label>
+  <label class="toggle"><input type="checkbox" id="optMusic"> Música</label>
   <label class="toggle"><input type="checkbox" id="lowPower"> Modo ahorro (30 FPS, menos calor)</label>
   <div class="chart">Cómo jugar: mueve con el dedo, tu criatura ataca sola.<br><br>
     Agua › Fuego › Planta › Agua<br>Eléctrico › Agua · Planta › Eléctrico<br>Daño x2 al tipo débil · x0.5 al resistente o igual</div>
