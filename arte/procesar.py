@@ -72,26 +72,18 @@ def finish(im, stage, name):
 
 
 made = {}
-# Agua: imágenes originales de Gemini con fondo magenta
-for i in (1, 2, 3):
-    im = Image.open(ROOT / f'agua{i}.jpg')
-    made[f'water{i}'] = finish(key_out(im, (255, 0, 255), 200), i, f'water{i}')
-
-# Fuego y planta: recortados de la foto con las 3 líneas (fondo verde)
-grid = Image.open(ROOT / 'foto_lineas.png').convert('RGBA')
-BG = (86, 172, 134)
-cols = [(0, 92), (92, 205), (205, 312)]
-rows = {'fire': (100, 200), 'plant': (200, 306)}
+# Plantilla de Gemini (2400x1792, fondo magenta): una fila por tipo, una columna por etapa.
+sheet_src = Image.open(ROOT / 'plantilla.jpg').convert('RGBA')
+MAGENTA = (255, 0, 255)
+cols = [(0, 540), (540, 1260), (1260, 1776)]
+rows = {'water': (0, 456), 'fire': (456, 912), 'plant': (912, 1332), 'elec': (1332, 1792)}
 for name, (y0, y1) in rows.items():
     for i, (x0, x1) in enumerate(cols, start=1):
-        cell = key_out(grid.crop((x0, y0, x1, y1)), BG, 70)
+        # el eléctrico de la etapa 1 no se usa: Voltín mantiene su diseño original del juego
+        if name == 'elec' and i == 1:
+            continue
+        cell = key_out(sheet_src.crop((x0, y0, x1, y1)), MAGENTA, 200)
         made[f'{name}{i}'] = finish(cell, i, f'{name}{i}')
-
-# Eléctrico: batería y nube (el primero se mantiene como el Voltín original del juego)
-el = Image.open(ROOT / 'foto_electrico.png').convert('RGBA')
-for i, (x0, x1) in ((2, (100, 215)), (3, (215, 336))):
-    cell = key_out(el.crop((x0, 0, x1, 96)), BG, 70)
-    made[f'elec{i}'] = finish(cell, i, f'elec{i}')
 
 # hoja de vista previa ampliada x4
 order = ['water1', 'water2', 'water3', 'fire1', 'fire2', 'fire3', 'plant1', 'plant2', 'plant3', 'elec2', 'elec3']
