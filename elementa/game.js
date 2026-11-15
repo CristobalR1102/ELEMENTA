@@ -1330,6 +1330,7 @@ function kill(e) {
     for (let i = 0; i < 12; i++) dropGem(e.x + rand(-20, 20), e.y + rand(-20, 20), 25);
     gems.push({ x: e.x, y: e.y, v: 0, berry: true, mag: false });
     if (e.final) { won = true; winAt = T + 1.5; banner('¡Venciste al jefe final!'); }
+    else if (run.infinite) addMoveSlot();
     return;
   }
   let v = e.xp * (Math.random() < (player.luck || 0) * 0.08 ? 2 : 1);
@@ -2483,11 +2484,20 @@ function gameOver(win) {
   $('over').classList.add('show');
 }
 // Modo infinito: después de ganar, seguir hasta caer
+// En infinito ganas una ranura de ataque al entrar y otra por cada jefe que derrotes (máximo 8)
+const INF_MAX_MOVES = 8;
+function addMoveSlot() {
+  const p = player, cur = p.maxMoves || MAX_MOVES;
+  if (cur >= INF_MAX_MOVES) return;
+  p.maxMoves = cur + 1;
+  setTimeout(() => banner('¡Nueva ranura! Puedes llevar ' + p.maxMoves + ' ataques'), 1600);
+}
 function startInfinite() {
   $('over').classList.remove('show');
   run.infinite = true; run.winKills = kills; run.winT = T;
   won = false; winAt = -1; nextInfBoss = T + 120; nextInfMini = T + 60;
   banner('¡Modo infinito! Aguanta todo lo que puedas');
+  addMoveSlot();
   state = 'play'; resetClock();
 }
 
