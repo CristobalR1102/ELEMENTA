@@ -116,6 +116,8 @@
     pointer-events:none; animation:pulse 1.4s ease-in-out infinite; z-index:5; }
   .overlay { z-index:10; }
   #pSfx, #pMusic { font-size:13px; padding:10px 14px; }
+  .btn.chip { padding:5px 12px; font-size:12px; border-radius:999px; background:rgba(31,37,51,.92); }
+  #btnNight.on { border-color:#b13e53; color:#ff8fa3; background:rgba(93,26,42,.85); }
   #pSfx.off, #pMusic.off { color:#94a0b8; border-style:dashed; }
   #hint.show { display:block; }
   @keyframes pulse { 50% { transform:scale(1.04); } }
@@ -151,6 +153,7 @@
   </div>
   <div class="s-name" id="sName"></div>
   <div id="sBadge"></div>
+  <button class="btn chip" id="btnSkin" style="display:none">Color: Normal</button>
   <div class="s-desc" id="sDesc"></div>
   <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
   <div class="map-sel">
@@ -158,6 +161,7 @@
     <div class="map-text"><div id="mapName"></div><div class="map-info" id="mapInfo"></div></div>
     <button class="arrow sm" id="nextM" aria-label="Mapa siguiente">›</button>
   </div>
+  <button class="btn chip" id="btnNight" style="display:none">😈 Pesadilla: No</button>
   <button class="btn main play" id="btnPlay">JUGAR</button>
   <button class="btn daily" id="btnDaily">Desafío diario</button>
   <div class="menu-row">

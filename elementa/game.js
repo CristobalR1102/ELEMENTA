@@ -1332,11 +1332,11 @@ function kill(e) {
     if (e.final) { won = true; winAt = T + 1.5; banner('¡Venciste al jefe final!'); }
     return;
   }
-  let v = e.xp;
+  let v = e.xp * (Math.random() < (player.luck || 0) * 0.08 ? 2 : 1);
   while (v >= 25) { dropGem(e.x + rand(-6, 6), e.y + rand(-6, 6), 25); v -= 25; }
   while (v >= 5) { dropGem(e.x + rand(-4, 4), e.y + rand(-4, 4), 5); v -= 5; }
   if (v > 0) dropGem(e.x, e.y, v);
-  if (Math.random() < 0.012) gems.push({ x: e.x, y: e.y, v: 0, berry: true, mag: false });
+  if (Math.random() < 0.012 * (1 + 0.6 * (player.luck || 0))) gems.push({ x: e.x, y: e.y, v: 0, berry: true, mag: false });
 }
 function dropGem(x, y, v) {
   if (gems.length >= 260) { gems[(Math.random() * gems.length) | 0].v += v; return; }
@@ -1623,7 +1623,7 @@ function gainXp(v) {
 function options() {
   const p = player, opts = [];
   for (const m of p.moves) if (m.lvl < MOVE_MAX_LVL) opts.push({ kind: 'up', id: m.id, w: 3 });
-  if (p.moves.length < MAX_MOVES) for (const id in MOVES) if (!p.moves.some((m) => m.id === id)) opts.push({ kind: 'new', id, w: MOVES[id].type === p.type ? 1.2 : 0.8 });
+  if (p.moves.length < (p.maxMoves || MAX_MOVES)) for (const id in MOVES) if (!p.moves.some((m) => m.id === id)) opts.push({ kind: 'new', id, w: MOVES[id].type === p.type ? 1.2 : 0.8 });
   for (const id in PASSIVES) if ((p.passives[id] || 0) < PAS_MAX_LVL) opts.push({ kind: 'pas', id, w: 1.2 });
   // si hay una fusión disponible, siempre aparece como primera opción
   const fuse = [];
@@ -1653,7 +1653,7 @@ function openRelic() {
   const box = $('choices'); box.innerHTML = '';
   const ids = Object.keys(RELICS).filter((id) => !player.relics[id]);
   const opts = [];
-  while (opts.length < 3 && ids.length) opts.push(ids.splice((Math.random() * ids.length) | 0, 1)[0]);
+  while (opts.length < (player.relicChoices || 3) && ids.length) opts.push(ids.splice((Math.random() * ids.length) | 0, 1)[0]);
   if (!opts.length) opts.push('_heal');
   for (const id of opts) {
     const r = RELICS[id] || { name: 'Gran Baya', desc: 'Ya tienes todas las reliquias: recuperas toda tu vida.' };
@@ -1680,8 +1680,8 @@ function openLevelUp() {
   state = 'levelup'; joy.on = false;
   $('lvTitle').textContent = '¡Subiste de nivel!'; sfx('level');
   const box = $('choices'); box.innerHTML = '';
-  const full = player.moves.length >= MAX_MOVES;
-  $('lvMoves').innerHTML = 'Nivel ' + player.level + ' · Ataques ' + player.moves.length + '/' + MAX_MOVES +
+  const maxM = player.maxMoves || MAX_MOVES, full = player.moves.length >= maxM;
+  $('lvMoves').innerHTML = 'Nivel ' + player.level + ' · Ataques ' + player.moves.length + '/' + maxM +
     (full ? ' (completo: solo mejoras)' : '') + '<br>' +
     player.moves.map((m) => MOVES[m.id].name + ' ' + m.lvl).join(' · ');
   for (const o of options()) {
@@ -1834,7 +1834,7 @@ function render() {
 
   // jugador
   // los pies quedan siempre en la misma línea; las evoluciones crecen hacia arriba
-  const ps = SPR[p.type + (p.stage ? p.stage + 1 : '')];
+  const ps = skinSprite(p.type + (p.stage ? p.stage + 1 : ''), run.skin);
   const foot = (H >> 1) + 8, px = (W >> 1) - (ps.w >> 1), py = foot - ps.h;
   ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(px + 3, foot - 1, ps.w - 6, 2);
   const fr = p.moving ? ((T * 8) | 0) & 1 : ((T * 2.5) | 0) & 1;
@@ -2054,13 +2054,21 @@ function musicTick() {
 }
 
 // ---------- Monedas y mejoras permanentes ----------
+// después del nivel 5 cada mejora sube más rápido de precio
+const steep = (base, k) => (l) => Math.round((base + l * k + Math.max(0, l - 4) * k * 1.5) / 5) * 5;
 const META_UP = {
-  vida: { name: 'Vida', desc: '+12 de vida inicial', max: 5, cost: (l) => 40 + l * 45 },
-  fuerza: { name: 'Fuerza', desc: '+6% de daño', max: 5, cost: (l) => 50 + l * 55 },
-  velocidad: { name: 'Velocidad', desc: '+4% de velocidad', max: 5, cost: (l) => 40 + l * 40 },
-  iman: { name: 'Imán', desc: '+15% radio para recoger cristales', max: 5, cost: (l) => 30 + l * 35 },
-  sabiduria: { name: 'Sabiduría', desc: '+8% de experiencia', max: 5, cost: (l) => 60 + l * 60 },
+  vida: { name: 'Vida', desc: '+12 de vida inicial', max: 10, cost: steep(40, 45) },
+  fuerza: { name: 'Fuerza', desc: '+6% de daño', max: 10, cost: steep(50, 55) },
+  velocidad: { name: 'Velocidad', desc: '+4% de velocidad', max: 10, cost: steep(40, 40) },
+  iman: { name: 'Imán', desc: '+15% radio para recoger cristales', max: 10, cost: steep(30, 35) },
+  sabiduria: { name: 'Sabiduría', desc: '+8% de experiencia', max: 10, cost: steep(60, 60) },
+  suerte: { name: 'Suerte', desc: 'Más bayas y cristales dobles', max: 5, cost: steep(80, 70) },
+  codicia: { name: 'Codicia', desc: '+10% de monedas por partida', max: 5, cost: steep(100, 90) },
   revivir: { name: 'Segunda Oportunidad', desc: 'Revives una vez por partida con 50% de vida', max: 1, cost: () => 350 },
+  tercera: { name: 'Tercera Oportunidad', desc: 'Un segundo revivir por partida', max: 1, cost: () => 900, req: 'revivir' },
+  arsenal: { name: 'Arsenal', desc: 'Empiezas con un ataque extra de tu tipo', max: 1, cost: () => 500 },
+  buenojo: { name: 'Buen Ojo', desc: 'Los cofres ofrecen 4 reliquias', max: 1, cost: () => 450 },
+  espacio: { name: 'Quinto Ataque', desc: 'Puedes llevar 5 ataques en vez de 4', max: 1, cost: () => 1500 },
 };
 function meta() { const m = Object.assign({ coins: 0, up: {} }, load('elementa.meta', {})); m.up = m.up || {}; return m; }
 function applyMeta(p) {
@@ -2070,9 +2078,64 @@ function applyMeta(p) {
   p.speed *= 1 + 0.04 * (u.velocidad || 0);
   p.magnet *= 1 + 0.15 * (u.iman || 0);
   p.xpMul = 1 + 0.08 * (u.sabiduria || 0);
-  p.revives = u.revivir ? 1 : 0;
+  p.revives = (u.revivir ? 1 : 0) + (u.tercera ? 1 : 0);
+  p.luck = u.suerte || 0;
+  p.coinMul = 1 + 0.1 * (u.codicia || 0);
+  p.relicChoices = u.buenojo ? 4 : 3;
+  p.maxMoves = 4 + (u.espacio || 0);
+  p.arsenal = !!u.arsenal;
 }
 function runCoins(win) { return Math.floor(kills / 4 + T / 10 + (win ? 150 : 0)); }
+
+// ---------- Colores alternativos ----------
+const SKINS = [
+  { id: 'normal', name: 'Normal', cost: 0 },
+  { id: 'oro', name: 'Dorado', cost: 400, ramp: [[60, 35, 5], [225, 165, 40], [255, 245, 190]] },
+  { id: 'sombra', name: 'Sombra', cost: 600, ramp: [[18, 8, 32], [95, 55, 150], [210, 180, 250]] },
+  { id: 'cristal', name: 'Cristal', cost: 800, ramp: [[15, 55, 85], [95, 200, 240], [240, 255, 255]] },
+];
+function skinsOwned() { return load('elementa.skins', ['normal']); }
+function skinOf(type) {
+  const s = load('elementa.skinSel', {})[type] || 'normal';
+  return skinsOwned().indexOf(s) !== -1 ? s : 'normal';
+}
+// pinta la criatura con otra gama de colores según el brillo de cada píxel
+function recolor(canvas, ramp) {
+  const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height;
+  const g = c.getContext('2d'); g.drawImage(canvas, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4) {
+    if (!px[i + 3]) continue;
+    const l = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / 255;
+    const lo = l < 0.5 ? ramp[0] : ramp[1], hi = l < 0.5 ? ramp[1] : ramp[2], t = l < 0.5 ? l * 2 : (l - 0.5) * 2;
+    px[i] = lo[0] + (hi[0] - lo[0]) * t; px[i + 1] = lo[1] + (hi[1] - lo[1]) * t; px[i + 2] = lo[2] + (hi[2] - lo[2]) * t;
+  }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+const skinCache = {};
+function skinSprite(key, skin) {
+  const base = SPR[key];
+  if (!skin || skin === 'normal' || !base) return base;
+  const ck = key + '|' + skin;
+  if (!skinCache[ck]) {
+    const ramp = SKINS.find((s) => s.id === skin).ramp;
+    skinCache[ck] = { r: base.r.map((c) => recolor(c, ramp)), l: base.l.map((c) => recolor(c, ramp)),
+      white: base.white, dark: base.dark, w: base.w, h: base.h };
+  }
+  return skinCache[ck];
+}
+function cycleSkin() {
+  const type = TYPES[selIdx], owned = skinsOwned(), cur = skinOf(type);
+  const next = owned[(owned.indexOf(cur) + 1) % owned.length];
+  const sel = load('elementa.skinSel', {}); sel[type] = next; save('elementa.skinSel', sel);
+  updateSkinBtn();
+}
+function updateSkinBtn() {
+  const b = $('btnSkin'), type = TYPES[selIdx];
+  b.style.display = skinsOwned().length > 1 && isOpen(type) ? '' : 'none';
+  b.textContent = 'Color: ' + SKINS.find((s) => s.id === skinOf(type)).name;
+}
 function openShop() {
   const m = meta(), list = $('shopList');
   $('shopCoins').innerHTML = '<span class="coin"></span> ' + m.coins + ' monedas';
@@ -2084,12 +2147,34 @@ function openShop() {
       '</span></div><div class="d">' + u.desc + '</div></div>';
     const b = document.createElement('button'); b.className = 'btn buy';
     b.innerHTML = maxed ? 'Máx' : '<span class="coin"></span> ' + cost;
-    b.disabled = maxed || m.coins < cost;
+    const needs = u.req && !m.up[u.req];
+    if (needs) row.querySelector('.d').textContent += ' (necesita ' + META_UP[u.req].name + ')';
+    b.disabled = maxed || needs || m.coins < cost;
     b.onclick = () => {
       const mm = meta(), l2 = mm.up[id] || 0, c2 = u.cost(l2);
-      if (l2 >= u.max || mm.coins < c2) return;
+      if (l2 >= u.max || mm.coins < c2 || (u.req && !mm.up[u.req])) return;
       mm.coins -= c2; mm.up[id] = l2 + 1; save('elementa.meta', mm);
       sfx('relic'); openShop(); updateMenuCoins();
+    };
+    row.appendChild(b); list.appendChild(row);
+  }
+  // colores alternativos: se compran una vez y sirven para todas las criaturas
+  const h = document.createElement('h2'); h.textContent = 'Colores'; h.style.marginTop = '8px'; list.appendChild(h);
+  const owned = skinsOwned();
+  for (const s of SKINS) {
+    if (!s.cost) continue;
+    const has = owned.indexOf(s.id) !== -1;
+    const row = document.createElement('div'); row.className = 'card shop-row';
+    row.innerHTML = '<div style="flex:1"><div class="t">' + s.name + ' <span class="badge b-pas">COLOR</span></div>' +
+      '<div class="d">Todas tus criaturas pueden usar este color. Se elige en el menú.</div></div>';
+    const b = document.createElement('button'); b.className = 'btn buy';
+    b.innerHTML = has ? 'Tuyo' : '<span class="coin"></span> ' + s.cost;
+    b.disabled = has || m.coins < s.cost;
+    b.onclick = () => {
+      const mm = meta(), o = skinsOwned();
+      if (o.indexOf(s.id) !== -1 || mm.coins < s.cost) return;
+      mm.coins -= s.cost; save('elementa.meta', mm); o.push(s.id); save('elementa.skins', o);
+      sfx('relic'); openShop(); updateMenuCoins(); updateSkinBtn();
     };
     row.appendChild(b); list.appendChild(row);
   }
@@ -2150,9 +2235,12 @@ function showMenu() {
   $('best').innerHTML = best
     ? 'Récord ' + fmt(best.t) + ' · Nivel ' + best.lv + (best.win ? ' · ¡Ganaste!' : '')
     : 'Aún no tienes récord';
+  const bn = load('elementa.bestNight', null);
+  if (bn) $('best').innerHTML += ' · 😈 ' + fmt(bn.t);
   selectStarter(0);
   selectMap(0);
   updateMenuBadges();
+  updateNightBtn();
   if (!scene.mobs.length) initScene();
 }
 function fmt(t) { t = Math.floor(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
@@ -2167,6 +2255,7 @@ function selectStarter(delta) {
   $('sBadge').innerHTML = '<span class="badge b-' + type + '">' + TYPE_NAME[type] + '</span>' +
     (open ? '<span class="badge b-pas">' + MOVES[st.move].name + '</span>' : '<span class="badge b-pas">BLOQUEADO</span>');
   $('sDesc').textContent = open ? st.desc : unlockText(type);
+  updateSkinBtn();
   updatePlayBtn();
   $('dots').querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i === selIdx));
 }
@@ -2175,7 +2264,9 @@ function buildMenu() {
   $('dots').innerHTML = TYPES.map(() => '<i></i>').join('');
   $('prevS').onclick = () => selectStarter(-1);
   $('nextS').onclick = () => selectStarter(1);
-  $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx]) && mapIdx < mapsOpen()) start(TYPES[selIdx], { map: mapIdx }); };
+  $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx]) && mapIdx < mapsOpen()) start(TYPES[selIdx], { map: mapIdx, night: nightOn }); };
+  $('btnSkin').onclick = cycleSkin;
+  $('btnNight').onclick = () => { nightOn = !nightOn; save('elementa.night', nightOn); updateNightBtn(); };
   $('prevM').onclick = () => selectMap(-1);
   $('nextM').onclick = () => selectMap(1);
   $('btnDaily').onclick = openDaily;
@@ -2285,7 +2376,7 @@ function renderScene() {
   }
 }
 function drawShowcase() {
-  const type = TYPES[selIdx], sp = SPR[type], fr = ((scene.t * 2.5) | 0) & 1;
+  const type = TYPES[selIdx], sp = isOpen(type) ? skinSprite(type, skinOf(type)) : SPR[type], fr = ((scene.t * 2.5) | 0) & 1;
   drawFoot($('showCv'), (isOpen(type) ? sp.r : sp.dark)[fr], sp.w, sp.h);
 }
 function hasWon() { const b = load('elementa.best', null); return !!(b && b.win); }
@@ -2297,9 +2388,17 @@ function start(type, opts) {
   run = { mode, map: mapI, mods, easy, infinite: false, stats: {}, winKills: 0, winT: 0,
     hpMul: map.diff * (easy ? 0.8 : 1), spdMul: mods.enemySpd || 1,
     dmgMul: (1 + (map.diff - 1) * 0.5) * (easy ? 0.75 : 1), xpMul: mods.xp || 1 };
+  // Pesadilla: enemigos mucho más fuertes, el doble de monedas y récord aparte
+  run.night = mode === 'normal' && !!opts.night;
+  if (run.night) { run.hpMul *= 2.2; run.dmgMul *= 1.6; run.spdMul *= 1.1; }
+  run.skin = skinOf(type);
   buildGround(map);
   player = newPlayer(type);
   applyMeta(player);
+  if (player.arsenal) {
+    const pool = Object.keys(MOVES).filter((id) => MOVES[id].type === type && !MOVES[id].fused && id !== STARTERS[type].move);
+    if (pool.length) player.moves.push({ id: pick(pool), lvl: 1, t: 0.5 });
+  }
   if (easy) { player.maxHp += 20; player.hp = player.maxHp; }
   if (mods.dmg) player.dmgMul *= mods.dmg;
   if (mods.hp) { player.maxHp = Math.round(player.maxHp * mods.hp); player.hp = player.maxHp; }
@@ -2314,6 +2413,7 @@ function start(type, opts) {
   $('hud').style.display = 'flex';
   updateHud(); tutShow();
   if (mode === 'daily') banner('Desafío: ' + (opts.modName || '') + '. ¡Sobrevive 5 minutos!');
+  else if (run.night) banner('😈 Pesadilla: ' + map.name);
   else if (mapI > 0) banner(map.name);
   state = 'play'; resetClock();
 }
@@ -2343,7 +2443,14 @@ function gameOver(win) {
     if (run.mode === 'normal') {
       const best = load('elementa.best', null);
       const isBest = !best || (win && !best.win) || (win === best.win && T > best.t);
-      if (isBest) { save('elementa.best', { t: T, lv: p.level, win }); lines.push('<span style="color:var(--gold)">¡Nuevo récord!</span>'); }
+      if (run.night) {
+        title = (win ? '¡Victoria' : 'Derrota') + ' en Pesadilla' + (win ? '!' : '');
+        const bn = load('elementa.bestNight', null);
+        if (!bn || (win && !bn.win) || (win === bn.win && T > bn.t)) {
+          save('elementa.bestNight', { t: T, lv: p.level, win });
+          lines.push('<span style="color:var(--gold)">¡Nuevo récord en Pesadilla!</span>');
+        }
+      } else if (isBest) { save('elementa.best', { t: T, lv: p.level, win }); lines.push('<span style="color:var(--gold)">¡Nuevo récord!</span>'); }
       if (win) {
         for (const t in UNLOCKS) {
           if (UNLOCKS[t] === run.map && load('elementa.unlocked', []).indexOf(t) === -1) {
@@ -2364,6 +2471,7 @@ function gameOver(win) {
       }
     }
   }
+  coins = Math.floor(coins * (p.coinMul || 1) * (run.night ? 2 : 1));
   const m = meta(); m.coins += coins; save('elementa.meta', m);
   finishRunStats(win);
   sfx(win ? 'win' : 'lose');
@@ -2517,6 +2625,14 @@ function selectMap(delta) {
   $('mapInfo').textContent = open ? m.desc : 'Gana en ' + MAPS[mapIdx - 1].name + ' para desbloquearlo';
   buildGround(m);
   updatePlayBtn();
+}
+let nightOn = load('elementa.night', false);
+function updateNightBtn() {
+  const b = $('btnNight'), can = hasWon();
+  if (!can) nightOn = false;
+  b.style.display = can ? '' : 'none';
+  b.textContent = nightOn ? '😈 Pesadilla: Sí (x2 monedas)' : '😈 Pesadilla: No';
+  b.classList.toggle('on', nightOn);
 }
 function updatePlayBtn() {
   const ok = isOpen(TYPES[selIdx]) && mapIdx < mapsOpen();
