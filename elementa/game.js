@@ -2879,10 +2879,15 @@ function loop(ts) {
 }
 
 function resize() {
-  const vw = window.innerWidth, vh = window.innerHeight;
+  // En iPhone instalado como app, innerHeight a veces no cuenta la barra de estado y queda una franja negra abajo:
+  // se usa el alto real más grande disponible.
+  const vw = window.innerWidth;
+  let vh = Math.max(window.innerHeight, document.documentElement.clientHeight || 0);
+  if (navigator.standalone && screen.height && Math.abs(screen.width - vw) < 2) vh = Math.max(vh, screen.height);
   H = Math.round(Math.min(420, Math.max(260, W * vh / vw)));
   cv.width = W * RS; cv.height = H * RS;
-  const s = Math.min(vw / W, vh / H);
+  // cubrir toda la pantalla (si sobra, se recorta un poco el borde en vez de dejar franjas)
+  const s = Math.max(vw / W, vh / H);
   cv.style.width = Math.floor(W * s) + 'px';
   cv.style.height = Math.floor(H * s) + 'px';
   ctx.imageSmoothingEnabled = false;
@@ -2949,6 +2954,8 @@ function loadArt() {
 }
 
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 300));
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
 resize();
 loadArt().then(() => { showMenu(); requestAnimationFrame(loop); });
 })();
