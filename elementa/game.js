@@ -1052,6 +1052,9 @@ const FUSIONS = [
   { from: 'rayo', pas: 'regen', to: 'tormentaVital' },
   { from: 'bumeran', pas: 'vel', to: 'bumeranInf' },
   { from: 'espinas', pas: 'vida', to: 'zarzal' },
+  { from: 'ventisca', pas: 'iman', to: 'glaciar' },
+  { from: 'pedrada', pas: 'vida', to: 'terremoto' },
+  { from: 'llamaFatua', pas: 'regen', to: 'legion' },
 ];
 Object.assign(MOVES, {
   hidrocanon: { name: 'Hidrocañón', type: 'water', fused: true, desc: 'Rayo de agua continuo que barre todo en línea.',
@@ -1112,6 +1115,46 @@ Object.assign(MOVES, {
 });
 MOVES.huracan = Object.assign({}, MOVES.hojas, { name: 'Huracán Verde', fused: true, desc: 'Un gran anillo de hojas gira a tu alrededor.',
   count: () => 9, radius: () => 44, dmg: () => 30 });
+MOVES.ventisca.aura = true; // se dibuja como un círculo helado alrededor del jugador
+MOVES.glaciar = Object.assign({}, MOVES.ventisca, { name: 'Glaciar Eterno', fused: true, desc: 'Un enorme círculo helado que frena, congela y destroza.',
+  radius: () => 66,
+  fire() {
+    const R = 66;
+    forNear(player.x, player.y, R, (e) => {
+      const dx = e.x - player.x, dy = e.y - player.y;
+      if (dx * dx + dy * dy >= (R + e.r) * (R + e.r)) return;
+      e.slowT = T + 0.8;
+      if (!e.boss && Math.random() < 0.12) e.frozenT = T + 0.9;
+      hurt(e, 24, 'ice', 0, 0);
+    });
+  } });
+Object.assign(MOVES, {
+  terremoto: { name: 'Terremoto', type: 'rock', fused: true, desc: 'El suelo tiembla: onda gigante y púas en todas direcciones.',
+    cd: () => 1.6,
+    fire() {
+      const R = 85;
+      addFx('ring', player.x, player.y, R, 0.4, '#b08d57'); sfx('boom');
+      forNear(player.x, player.y, R, (e) => {
+        const dx = e.x - player.x, dy = e.y - player.y, d = Math.hypot(dx, dy) || 1;
+        if (d < R + e.r) hurt(e, 40, 'rock', dx / d * 200, dy / d * 200);
+      });
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4 + T;
+        for (let k = 1; k <= 3; k++) addZone({ x: player.x + Math.cos(a) * k * 28, y: player.y + Math.sin(a) * k * 28, r: 10, delay: 0.08 + k * 0.1,
+          life: 0.15, every: 99, dmg: 30, type: 'rock', col: '#b08d57', burst: 'spike' });
+      }
+    } },
+  legion: { name: 'Legión de Almas', type: 'ghost', fused: true, desc: 'Un enjambre de llamas que persiguen; cada golpe te cura.',
+    cd: () => 0.5,
+    fire() {
+      if (!nearest(player.x, player.y, 170)) return false;
+      for (let i = 0; i < 3; i++) {
+        const a = rand(0, Math.PI * 2);
+        const b = addBullet(player.x, player.y, Math.cos(a) * 90, Math.sin(a) * 90, 26, 'ghost', 1, 2.5, SPR.wispP, 3, 0);
+        b.homing = true; b.heal = 0.6;
+      }
+    } },
+});
 
 // Máximo de ataques: al completarlo, solo aparecen mejoras de los que ya tienes
 const MOVE_MAX_LVL = 8, PAS_MAX_LVL = 5, MAX_MOVES = 4;
@@ -1188,6 +1231,7 @@ let state = 'menu';
 let T = 0, kills = 0, spawnT = 0, nextElite = 50, nextHorde = 75, bossIdx = 0, won = false, winAt = -1;
 let player = null;
 let enemies = [], bullets = [], gems = [], fx = [], nums = [], zones = [];
+let hazards = [], eshots = []; // ataques de jefes: zonas avisadas y proyectiles enemigos
 const tmp = [];
 let miniIdx = 0, pendingRelic = 0, nextInfBoss = 0, nextInfMini = 0;
 // Datos de la partida actual: modo (normal o diario), mapa, modificadores, dificultad y contadores
@@ -1305,6 +1349,50 @@ function spawnEnemy(kind, opts) {
     mini: !!(opts && opts.mini), dashT: 2.5, dash: 0,
   });
 }
+// daño al jugador (contacto, golpes y proyectiles de jefes)
+function hurtPlayer(dmg, type) {
+  const p = player;
+  if (p.inv > 0) return;
+  const m = eff(type, p.type), mm = m > 1 ? 1.5 : m < 1 ? 0.66 : 1;
+  if (p.relics.escudo && p.shieldT <= 0) { p.shieldT = 8; p.inv = 0.5; addFx('ring', p.x, p.y, 20, 0.3, '#a5f0ff'); sfx('block'); return; }
+  p.hp -= dmg * mm * (1 + T / 400); p.inv = 0.5; hurtFlash = 0.15; sfx('hurt', 150);
+  if (run.firstHitT === undefined) run.firstHitT = T;
+}
+// Jefes: cada pocos segundos eligen un ataque y lo avisan antes de que golpee
+const BOSS_ATKS = ['slam', 'volley', 'rain', 'summon', 'charge'];
+function addHazard(x, y, r, t, dmg, type) { if (hazards.length < 40) hazards.push({ x, y, r, t, max: t, dmg, type }); }
+function addShot(x, y, vx, vy, dmg, type) { if (eshots.length < 150) eshots.push({ x, y, vx, vy, dmg, type, life: 4 }); }
+function bossAI(e, dt) {
+  if (e.atkT === undefined) { e.atkT = e.mini ? 4 : 2.5; e.last = ''; }
+  if (e.windT > 0) { e.windT -= dt; if (e.windT <= 0) bossRelease(e); return; }
+  if (e.chargeT > 0) return;
+  e.atkT -= dt;
+  if (e.atkT > 0) return;
+  const hard = e.final || run.infinite || run.night, p = player;
+  e.atkT = e.mini ? 5.5 : hard ? 3.2 : 4.2;
+  const list = e.mini ? ['slam', 'volley'] : BOSS_ATKS;
+  let a; do a = pick(list); while (a === e.last && list.length > 1);
+  e.last = a; e.atk = a;
+  if (a === 'slam') addHazard(p.x, p.y, e.mini ? 20 : 28, 1.1, e.dmg, e.type);
+  else if (a === 'rain') {
+    for (let i = 0; i < (hard ? 8 : 6); i++) addHazard(p.x + (i ? rand(-55, 55) : 0), p.y + (i ? rand(-55, 55) : 0), 15, 0.9 + i * 0.15, e.dmg * 0.6, e.type);
+  } else if (a === 'summon') {
+    const map = MAPS[run.map];
+    for (let i = 0; i < 6; i++) { const an = i * Math.PI / 3; spawnEnemy(pick(map.waves[0]), { x: e.x + Math.cos(an) * 26, y: e.y + Math.sin(an) * 26 }); }
+    addFx('ring', e.x, e.y, 40, 0.4, TYPE_COL[e.type] || '#b13e53');
+  } else if (a === 'volley') e.windT = 0.7;
+  else { // embestida: apunta, avisa con una línea y sale disparado
+    const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+    e.cvx = dx / d; e.cvy = dy / d; e.windT = 0.8;
+  }
+}
+function bossRelease(e) {
+  if (e.atk === 'volley') {
+    const hard = e.final || run.infinite || run.night, n = e.mini ? 8 : hard ? 16 : 12, a0 = rand(0, Math.PI);
+    for (let i = 0; i < n; i++) { const a = a0 + i * Math.PI * 2 / n; addShot(e.x, e.y, Math.cos(a) * 62, Math.sin(a) * 62, e.dmg * 0.5, e.type); }
+    sfx('boom', 120);
+  } else if (e.atk === 'charge') e.chargeT = 0.55;
+}
 function hurt(e, base, atkType, kbx, kby) {
   if (e.dead) return;
   const m = eff(atkType, e.type);
@@ -1327,6 +1415,7 @@ function kill(e) {
   if (player.relics.robo) player.hp = Math.min(player.maxHp, player.hp + 1);
   if (e.mini) { gems.push({ x: e.x, y: e.y, v: 0, chest: true, mag: false }); banner('¡Recoge el cofre!'); }
   if (e.boss) {
+    run.bossKills = (run.bossKills || 0) + 1;
     for (let i = 0; i < 12; i++) dropGem(e.x + rand(-20, 20), e.y + rand(-20, 20), 25);
     gems.push({ x: e.x, y: e.y, v: 0, berry: true, mag: false });
     if (e.final) { won = true; winAt = T + 1.5; banner('¡Venciste al jefe final!'); }
@@ -1463,6 +1552,7 @@ function update(dt) {
       const sp = Math.hypot(b.vx, b.vy) || 1;
       hurt(e, b.dmg, b.type, b.vx / sp * b.kb, b.vy / sp * b.kb);
       if (b.slow) e.slowT = T + b.slow;
+      if (b.heal) p.hp = Math.min(p.maxHp, p.hp + b.heal);
       b.hit.push(e.id);
       if (--b.pierce < 0) { b.life = 0; return true; }
     });
@@ -1470,7 +1560,6 @@ function update(dt) {
   }
 
   // enemigos
-  const scaleDmg = 1 + T / 400;
   for (const e of enemies) {
     if (e.dead) continue;
     if (e.cursedT > T) { // maldición: daño cada medio segundo
@@ -1490,14 +1579,15 @@ function update(dt) {
       if (e.dashT <= 0) { e.dashT = 3.2; e.dash = 0.45; }
       if (e.dash > 0) { e.dash -= dt; spd *= 3.2; }
     }
+    if (e.boss || e.mini) {
+      bossAI(e, dt);
+      if (e.windT > 0) spd = 0; // se queda quieto mientras prepara el ataque
+      if (e.chargeT > 0) { e.chargeT -= dt; spd = 0; e.x += e.cvx * 210 * dt; e.y += e.cvy * 210 * dt; }
+    }
     e.x += (dx / d * spd + e.kx) * dt; e.y += (dy / d * spd + e.ky) * dt;
     const decay = Math.min(1, dt * 9); e.kx -= e.kx * decay; e.ky -= e.ky * decay;
     e.flash -= dt;
-    if (d < e.r + STAGE_RADIUS[p.stage] && p.inv <= 0) {
-      const m = eff(e.type, p.type), mm = m > 1 ? 1.5 : m < 1 ? 0.66 : 1;
-      if (p.relics.escudo && p.shieldT <= 0) { p.shieldT = 8; p.inv = 0.5; addFx('ring', p.x, p.y, 20, 0.3, '#a5f0ff'); sfx('block'); }
-      else { p.hp -= e.dmg * mm * scaleDmg; p.inv = 0.5; hurtFlash = 0.15; sfx('hurt', 150); }
-    }
+    if (d < e.r + STAGE_RADIUS[p.stage] && p.inv <= 0) hurtPlayer(e.dmg, e.type);
   }
   // separación suave entre enemigos de la misma celda
   for (let c = 0; c < cellHead.length; c++) {
@@ -1517,6 +1607,25 @@ function update(dt) {
   // limpiar muertos
   for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].dead) { enemies[i] = enemies[enemies.length - 1]; enemies.pop(); }
   fillGrid(); // la rejilla vuelve a calzar con la lista ya limpia (la usan las zonas de más abajo)
+
+  // golpes avisados y proyectiles de los jefes
+  const pr = STAGE_RADIUS[p.stage] * 0.7;
+  for (let i = hazards.length - 1; i >= 0; i--) {
+    const h = hazards[i];
+    h.t -= dt;
+    if (h.t > 0) continue;
+    addFx('boom', h.x, h.y, h.r, 0.3, '#b13e53'); sfx('boom', 120);
+    const dx = p.x - h.x, dy = p.y - h.y;
+    if (dx * dx + dy * dy < (h.r + pr) * (h.r + pr)) hurtPlayer(h.dmg, h.type);
+    hazards[i] = hazards[hazards.length - 1]; hazards.pop();
+  }
+  for (let i = eshots.length - 1; i >= 0; i--) {
+    const b = eshots[i];
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    const dx = p.x - b.x, dy = p.y - b.y;
+    if (dx * dx + dy * dy < (3 + pr) * (3 + pr)) { hurtPlayer(b.dmg, b.type); b.life = 0; }
+    if (b.life <= 0) { eshots[i] = eshots[eshots.length - 1]; eshots.pop(); }
+  }
 
   // cristales
   for (let i = gems.length - 1; i >= 0; i--) {
@@ -1624,7 +1733,7 @@ function gainXp(v) {
 function options() {
   const p = player, opts = [];
   for (const m of p.moves) if (m.lvl < MOVE_MAX_LVL) opts.push({ kind: 'up', id: m.id, w: 3 });
-  if (p.moves.length < (p.maxMoves || MAX_MOVES)) for (const id in MOVES) if (!p.moves.some((m) => m.id === id)) opts.push({ kind: 'new', id, w: MOVES[id].type === p.type ? 1.2 : 0.8 });
+  if (p.moves.length < (p.maxMoves || MAX_MOVES)) for (const id in MOVES) if (!MOVES[id].fused && !p.moves.some((m) => m.id === id)) opts.push({ kind: 'new', id, w: MOVES[id].type === p.type ? 1.2 : 0.8 });
   for (const id in PASSIVES) if ((p.passives[id] || 0) < PAS_MAX_LVL) opts.push({ kind: 'pas', id, w: 1.2 });
   // si hay una fusión disponible, siempre aparece como primera opción
   const fuse = [];
@@ -1783,8 +1892,8 @@ function render() {
   }
   ctx.globalAlpha = 1;
   // ventisca: aura helada con copos que giran
-  for (const m of p.moves) if (m.id === 'ventisca') {
-    const R = MOVES.ventisca.radius(m.lvl), cxp = W >> 1, cyp = H >> 1;
+  for (const m of p.moves) if (MOVES[m.id].aura) {
+    const R = MOVES[m.id].radius(m.lvl), cxp = W >> 1, cyp = H >> 1;
     ctx.globalAlpha = 0.16; ctx.fillStyle = '#a5f0ff';
     ctx.beginPath(); ctx.arc(cxp, cyp, R, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.5; ctx.strokeStyle = '#d8f7ff'; ctx.lineWidth = 1;
@@ -1804,6 +1913,17 @@ function render() {
     ctx.beginPath(); ctx.arc(W >> 1, H >> 1, MOVES.campo.radius(m.lvl), 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
+
+  // avisos de golpes de jefe: círculo rojo que se llena hasta que cae
+  for (const h of hazards) {
+    const x = h.x - cx, y = h.y - cy, k = 1 - h.t / h.max;
+    ctx.globalAlpha = 0.16; ctx.fillStyle = '#b13e53';
+    ctx.beginPath(); ctx.arc(x, y, h.r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.4; ctx.beginPath(); ctx.arc(x, y, h.r * k, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ef7d57'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, h.r, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 
   // efectos de suelo (anillos, explosiones)
   for (const f of fx) {
@@ -1829,6 +1949,16 @@ function render() {
       ctx.fillRect((x - 15) | 0, (y - h / 2 - 4) | 0, Math.max(0, 30 * e.hp / e.maxHp) | 0, 1);
     }
     if (e.mini) ctx.drawImage(SPR.crown.r[0], (x - 3) | 0, (y - h / 2 - 10) | 0);
+    if (e.windT > 0) { // el jefe prepara un ataque
+      if (e.atk === 'charge') {
+        ctx.globalAlpha = 0.35 + 0.3 * (((T * 12) | 0) & 1); ctx.strokeStyle = '#b13e53'; ctx.lineWidth = e.r;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + e.cvx * 120, y + e.cvy * 120); ctx.stroke();
+      } else {
+        ctx.globalAlpha = 0.8; ctx.strokeStyle = TYPE_COL[e.type] || '#ef7d57'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, e.r + 3 + (((T * 14) | 0) % 3) * 2, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
     if (e.frozenT > T) { ctx.globalAlpha = 0.45; ctx.fillStyle = '#a5f0ff'; ctx.fillRect((x - w / 2) | 0, (y - h / 2) | 0, w, h); ctx.globalAlpha = 1; }
     if (e.cursedT > T) { ctx.fillStyle = '#b48ce0'; ctx.fillRect((x - 1) | 0, (y - h / 2 - 4) | 0, 3, 3); }
   }
@@ -1884,6 +2014,15 @@ function render() {
     }
     const img = (b.boomer !== undefined || b.bounce) && ((T * 14) | 0) & 1 ? b.spr.l[0] : b.spr.r[0];
     ctx.drawImage(img, Math.round(x - b.spr.w / 2), Math.round(y - b.spr.h / 2));
+  }
+
+  // proyectiles de jefes
+  for (const b of eshots) {
+    const x = Math.round(b.x - cx), y = Math.round(b.y - cy);
+    if (x < -4 || y < -4 || x > W + 4 || y > H + 4) continue;
+    ctx.fillStyle = '#1a1c2c'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = TYPE_COL[b.type] || '#ef7d57'; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f4f4f4'; ctx.fillRect(x - 1, y - 1, 1, 1);
   }
 
   for (const m of p.moves) {
@@ -2274,6 +2413,8 @@ function buildMenu() {
   $('dailyBack').onclick = () => $('daily').classList.remove('show');
   $('btnMissions').onclick = openMissions;
   $('missionsBack').onclick = () => { $('missions').classList.remove('show'); updateMenuBadges(); };
+  $('btnAch').onclick = openAchs;
+  $('achBack').onclick = () => $('achs').classList.remove('show');
   // deslizar el dedo sobre la vitrina también cambia de criatura
   let sx = null;
   $('vitrina').addEventListener('pointerdown', (e) => { sx = e.clientX; });
@@ -2407,7 +2548,7 @@ function start(type, opts) {
   musicStep = 0;
   T = 0; kills = 0; spawnT = 0; nextElite = 50; nextHorde = 75; bossIdx = 0; miniIdx = 0; pendingRelic = 0; won = false; winAt = -1;
   nextInfBoss = 0; nextInfMini = 0;
-  enemies = []; bullets = []; gems = []; fx = []; nums = []; zones = []; pendingLv = 0; uid = 0; hurtFlash = 0;
+  enemies = []; bullets = []; gems = []; fx = []; nums = []; zones = []; hazards = []; eshots = []; pendingLv = 0; uid = 0; hurtFlash = 0;
   lastHudLv = -1; lastHudKills = -1;
   tut.on = mode === 'normal' && !load('elementa.tut', false); tut.step = 0; tut.t = 0; tut.moved = 0;
   for (const id of ['menu', 'over', 'daily']) $(id).classList.remove('show');
@@ -2473,8 +2614,23 @@ function gameOver(win) {
     }
   }
   coins = Math.floor(coins * (p.coinMul || 1) * (run.night ? 2 : 1));
-  const m = meta(); m.coins += coins; save('elementa.meta', m);
+  // victorias por mapa y por tipo (para los logros)
+  if (win && run.mode === 'normal' && !run.infinite) {
+    const wm = load('elementa.wonMaps', []), wt = load('elementa.wonTypes', []);
+    if (wm.indexOf(run.map) === -1) { wm.push(run.map); save('elementa.wonMaps', wm); }
+    if (wt.indexOf(p.type) === -1) { wt.push(p.type); save('elementa.wonTypes', wt); }
+  }
+  const rs = run.stats, bn = load('elementa.bestNight', null);
   finishRunStats(win);
+  const fresh = checkAchs({
+    everWon: hasWon(), noHit: run.firstHitT === undefined ? T : run.firstHitT, kills, stage: p.stage, level: p.level,
+    fusions: rs.fusions || 0, relics: Object.keys(p.relics).length, bosses: run.bossKills || 0,
+    inf: run.infinite ? T - run.winT : 0, slots: run.infinite ? p.moves.length : 0,
+    dailies: load('elementa.stats', {}).dailies || 0, nightWon: !!(bn && bn.win),
+    wonMaps: load('elementa.wonMaps', []).length, wonTypes: load('elementa.wonTypes', []).length,
+  });
+  for (const a of fresh) { coins += a.reward; lines.push('<span style="color:var(--gold)">🏅 Logro: ' + a.name + ' (+' + a.reward + ')</span>'); }
+  const m = meta(); m.coins += coins; save('elementa.meta', m);
   sfx(win ? 'win' : 'lose');
   if (missionsReady()) lines.push('<span style="color:var(--gold)">¡Tienes misiones para reclamar!</span>');
   $('overTitle').textContent = title;
@@ -2544,6 +2700,45 @@ function openDaily() {
     (done ? '<br><span style="color:var(--plant)">✓ Ya lo completaste hoy (puedes jugarlo igual)</span>' : '');
   $('dailyPlay').onclick = () => start(d.type, { mode: 'daily', map: d.map, mods: d.mod.apply, modName: d.mod.name });
   $('daily').classList.add('show');
+}
+
+// ---------- Logros ----------
+const ACHS = [
+  { id: 'first', name: 'Primera victoria', desc: 'Gana una partida.', reward: 100, ok: (c) => c.everWon },
+  { id: 'untouched', name: 'Intocable', desc: 'Aguanta 3 minutos sin recibir daño.', reward: 200, ok: (c) => c.noHit >= 180 },
+  { id: 'massacre', name: 'Arrasador', desc: 'Derrota 500 enemigos en una partida.', reward: 150, ok: (c) => c.kills >= 500 },
+  { id: 'legend', name: 'Forma final', desc: 'Llega a la tercera etapa de evolución.', reward: 100, ok: (c) => c.stage >= 2 },
+  { id: 'lvl40', name: 'Imparable', desc: 'Llega al nivel 40 en una partida.', reward: 200, ok: (c) => c.level >= 40 },
+  { id: 'fusion', name: 'Alquimista', desc: 'Crea una fusión de ataques.', reward: 100, ok: (c) => c.fusions > 0 },
+  { id: 'relics', name: 'Coleccionista', desc: 'Junta 4 reliquias en una partida.', reward: 150, ok: (c) => c.relics >= 4 },
+  { id: 'bosses', name: 'Cazajefes', desc: 'Derrota 3 jefes en una partida.', reward: 200, ok: (c) => c.bosses >= 3 },
+  { id: 'inf10', name: 'Sin final', desc: 'Aguanta 10 minutos en el modo infinito.', reward: 300, ok: (c) => c.inf >= 600 },
+  { id: 'slots', name: 'Arsenal completo', desc: 'Lleva 8 ataques a la vez en el modo infinito.', reward: 250, ok: (c) => c.slots >= 8 },
+  { id: 'daily5', name: 'Constante', desc: 'Completa 5 desafíos diarios.', reward: 200, ok: (c) => c.dailies >= 5 },
+  { id: 'night', name: 'Sin miedo', desc: 'Gana en Pesadilla.', reward: 300, ok: (c) => c.nightWon },
+  { id: 'maps', name: 'Explorador', desc: 'Gana en los 5 mapas.', reward: 400, ok: (c) => c.wonMaps >= MAPS.length },
+  { id: 'types', name: 'Maestro elemental', desc: 'Gana con los 7 tipos de criatura.', reward: 500, ok: (c) => c.wonTypes >= TYPES.length },
+];
+function achsGot() { return load('elementa.ach', {}); }
+// revisa logros al terminar una partida; devuelve los nuevos
+function checkAchs(c) {
+  const got = achsGot(), fresh = [];
+  for (const a of ACHS) if (!got[a.id] && a.ok(c)) { got[a.id] = true; fresh.push(a); }
+  if (fresh.length) save('elementa.ach', got);
+  return fresh;
+}
+function openAchs() {
+  const got = achsGot(), list = $('achList');
+  list.innerHTML = '';
+  $('achInfo').textContent = ACHS.filter((a) => got[a.id]).length + ' de ' + ACHS.length + ' logros. Las monedas se ganan solas al conseguirlos.';
+  for (const a of ACHS) {
+    const row = document.createElement('div'); row.className = 'card shop-row' + (got[a.id] ? '' : ' locked');
+    row.innerHTML = '<div class="medal">' + (got[a.id] ? '🏅' : '🔒') + '</div>' +
+      '<div style="flex:1"><div class="t">' + a.name + '</div><div class="d">' + a.desc + '</div></div>' +
+      '<div class="d" style="white-space:nowrap">' + (got[a.id] ? '✓' : '<span class="coin"></span> ' + a.reward) + '</div>';
+    list.appendChild(row);
+  }
+  $('achs').classList.add('show');
 }
 
 // ---------- Misiones ----------
@@ -2712,6 +2907,10 @@ if (location.hostname === 'localhost') window.__dev = {
   openRelic: () => { pendingRelic = 1; openRelic(); },
   minis: () => enemies.filter((e) => e.mini).map((e) => Math.round(e.hp)),
   mini: () => spawnEnemy('piedrin', { scale: 2, hpMul: 22, xpMul: 15, dmgMul: 2, spdMul: 0.95, mini: true, x: player.x + 40, y: player.y }),
+  boss: () => spawnEnemy(MAPS[run.map].boss[0], { scale: 3, hpMul: 35, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, x: player.x + 60, y: player.y }),
+  bossInfo: () => ({ boss: enemies.filter((e) => e.boss).map((e) => ({ atk: e.atk, atkT: +(e.atkT || 0).toFixed(2), windT: +(e.windT || 0).toFixed(2), chargeT: +(e.chargeT || 0).toFixed(2) })), hazards: hazards.length, eshots: eshots.length, hp: Math.round(player.hp), firstHit: run.firstHitT }),
+  raw: (n) => { for (let i = 0; i < n; i++) { state = 'play'; update(1 / 60); pendingLv = 0; pendingRelic = 0; } render(); state = 'pause'; },
+  achs: () => achsGot(), openAchs: () => openAchs(),
   give: (ids) => { player.moves = ids.map((id) => ({ id, lvl: 4, t: 0.2 })); },
   stats: () => ({ enemies: enemies.length, bullets: bullets.length, zones: zones.length, fx: fx.length, kills, hp: Math.round(player.hp), T: Math.round(T) }),
   // avanza n cuadros a mano (sirve aunque la pestaña esté en segundo plano)

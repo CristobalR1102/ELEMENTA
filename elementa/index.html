@@ -124,6 +124,8 @@
   .coin { display:inline-block; width:11px; height:11px; border-radius:50%; background:#ffcd75; box-shadow:inset -2px -2px 0 #e0a040, 0 0 0 1.5px #5d3a1a; vertical-align:-1px; }
   .coins-big { font-size:18px; color:var(--gold); }
   .shop-row { align-items:center; }
+  .card.locked { opacity:.55; }
+  .medal { font-size:22px; width:30px; text-align:center; }
   .btn.buy { flex:none; padding:8px 12px; font-size:13px; background:var(--gold); color:#141821; border-color:var(--gold); white-space:nowrap; }
   .btn.buy:disabled { background:#3a4560; border-color:#3a4560; color:#94a0b8; }
   .menu-row .btn { flex:1; padding:10px 0; font-size:13px; background:rgba(31,37,51,.92); }
@@ -188,7 +190,17 @@
   <h2>Misiones</h2>
   <p>Completa misiones para ganar monedas. Cuentan todas tus partidas.</p>
   <div class="cards" id="missionList"></div>
-  <button class="btn" id="missionsBack">Volver</button>
+  <div class="row">
+    <button class="btn" id="btnAch">🏅 Logros</button>
+    <button class="btn" id="missionsBack">Volver</button>
+  </div>
+</div>
+
+<div class="overlay" id="achs">
+  <h2>Logros</h2>
+  <p id="achInfo"></p>
+  <div class="cards" id="achList"></div>
+  <button class="btn" id="achBack">Volver</button>
 </div>
 
 <div id="hint"></div>
