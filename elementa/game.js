@@ -908,7 +908,7 @@ Object.assign(MOVES, {
       const R = this.radius(m.lvl);
       forNear(player.x, player.y, R, (e) => {
         const dx = e.x - player.x, dy = e.y - player.y;
-        if (dx * dx + dy * dy < (R + e.r) * (R + e.r)) { e.slowT = T + 0.6; hurt(e, 2 + 1.2 * m.lvl, 'ice', 0, 0); }
+        if (dx * dx + dy * dy < (R + e.r) * (R + e.r)) { e.slowT = T + 0.6; hurt(e, 4 + 2 * m.lvl, 'ice', 0, 0); }
       });
     } },
   granizo: { name: 'Granizo', type: 'ice', desc: 'Cae granizo sobre los enemigos y los frena.',
@@ -1781,6 +1781,22 @@ function render() {
     if (z.anvil && z.delay > 0) { const s = SPR[z.dropSpr || 'anvil']; ctx.drawImage(s.r[0], (x - s.w / 2) | 0, (y - s.h - z.delay * 110) | 0); }
   }
   ctx.globalAlpha = 1;
+  // ventisca: aura helada con copos que giran
+  for (const m of p.moves) if (m.id === 'ventisca') {
+    const R = MOVES.ventisca.radius(m.lvl), cxp = W >> 1, cyp = H >> 1;
+    ctx.globalAlpha = 0.16; ctx.fillStyle = '#a5f0ff';
+    ctx.beginPath(); ctx.arc(cxp, cyp, R, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.5; ctx.strokeStyle = '#d8f7ff'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cxp, cyp, R, T * 2, T * 2 + 1.4); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cxp, cyp, R * 0.7, -T * 3, -T * 3 + 1.1); ctx.stroke();
+    ctx.globalAlpha = 0.9;
+    const fl = SPR.snowflake.r[0];
+    for (let i = 0; i < 6; i++) {
+      const a = T * (1.6 + (i & 1) * 0.8) + i * Math.PI / 3, rr = R * (0.45 + 0.5 * ((i * 37) % 10) / 10);
+      ctx.drawImage(fl, Math.round(cxp + Math.cos(a) * rr - 2), Math.round(cyp + Math.sin(a) * rr - 2));
+    }
+    ctx.globalAlpha = 1;
+  }
   // campo estático alrededor del jugador
   for (const m of p.moves) if (m.id === 'campo') {
     ctx.globalAlpha = 0.18 + 0.1 * (((T * 10) | 0) & 1); ctx.fillStyle = '#ffcd75';
@@ -2181,12 +2197,23 @@ function buildMenu() {
   $('shopBack').onclick = () => $('shop').classList.remove('show');
   const sf = $('optSfx'), mu = $('optMusic');
   sf.checked = audio.sfx; mu.checked = audio.music;
-  sf.onchange = () => { audio.sfx = sf.checked; save('elementa.sfx', audio.sfx); };
-  mu.onchange = () => { audio.music = mu.checked; save('elementa.music', audio.music); };
+  sf.onchange = () => { audio.sfx = sf.checked; save('elementa.sfx', audio.sfx); syncSoundButtons(); };
+  mu.onchange = () => { audio.music = mu.checked; save('elementa.music', audio.music); syncSoundButtons(); };
+  // botones de la pausa: cambian lo mismo que Ajustes
+  $('pSfx').onclick = () => { audio.sfx = !audio.sfx; save('elementa.sfx', audio.sfx); syncSoundButtons(); };
+  $('pMusic').onclick = () => { audio.music = !audio.music; save('elementa.music', audio.music); syncSoundButtons(); };
+  syncSoundButtons();
   const lp = $('lowPower'); lp.checked = lowPower;
   lp.onchange = () => { lowPower = lp.checked; save('elementa.low', lowPower); };
 }
 
+function syncSoundButtons() {
+  $('pSfx').textContent = audio.sfx ? '🔊 Sonido: Sí' : '🔇 Sonido: No';
+  $('pMusic').textContent = audio.music ? '🎵 Música: Sí' : '🎵 Música: No';
+  $('pSfx').classList.toggle('off', !audio.sfx);
+  $('pMusic').classList.toggle('off', !audio.music);
+  $('optSfx').checked = audio.sfx; $('optMusic').checked = audio.music;
+}
 function openDex() {
   const grid = $('dexGrid'), s = seen();
   grid.innerHTML = '';
