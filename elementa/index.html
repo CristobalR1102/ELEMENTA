@@ -151,6 +151,35 @@
     .menu-row .btn { padding:8px 0; }
     .record { padding:4px 10px; }
   }
+  /* menú: Clásico y Desafío lado a lado */
+  .menu-row.duo { width:280px; }
+  .menu-row.duo .btn { flex:1; width:auto; padding:9px 0; font-size:13px !important; }
+  #classicPlay:disabled { background:#3a4560; border-color:#3a4560; color:#94a0b8; }
+  /* mapa de niveles */
+  #world { justify-content:flex-start; }
+  .worlds { display:flex; flex-direction:column; gap:12px; width:100%; max-width:360px; }
+  .world { border-radius:14px; border:2px solid var(--line); padding:10px 8px 8px;
+    background:linear-gradient(160deg, var(--g1), var(--g2)); box-shadow:0 4px 0 rgba(0,0,0,.35); }
+  .world.locked { filter:grayscale(.7) brightness(.6); }
+  .world-h { display:flex; justify-content:space-between; font-size:15px; padding:0 6px 8px; text-shadow:0 2px 0 #000; }
+  .world-s { color:var(--gold); font-size:13px; }
+  .world-lock { font-size:11px; color:#cfd6e3; font-weight:400; margin:-4px 0 6px; }
+  .nodes { display:flex; justify-content:space-between; position:relative; padding:0 4px; }
+  .nodes::before { content:''; position:absolute; left:28px; right:28px; top:21px; border-top:3px dashed rgba(255,255,255,.35); }
+  .node-w { display:flex; flex-direction:column; align-items:center; gap:3px; position:relative; width:52px; }
+  .node { width:44px; height:44px; border-radius:50%; border:3px solid #94a0b8; background:#1f2533; color:var(--text);
+    font:inherit; font-size:17px; box-shadow:0 3px 0 #0b0e15; padding:0; }
+  .node.boss { width:48px; height:48px; margin-top:-2px; font-size:20px; }
+  .node.done { border-color:var(--gold); background:#3d2e14; }
+  .node.open { border-color:#f4f4f4; background:#2c3a5a; animation:pulse 1.4s ease-in-out infinite; }
+  .node.locked { opacity:.55; }
+  .node:active:not(:disabled) { transform:translateY(2px); box-shadow:0 1px 0 #0b0e15; }
+  .node-w small { font-size:12px; color:#cfd6e3; min-height:15px; text-shadow:0 1px 0 #000; letter-spacing:-1px; }
+  .node-w small b { color:var(--gold); font-weight:700; }
+  .res-stars { font-size:38px; letter-spacing:6px; line-height:1; }
+  .res-stars span { color:#3a4560; text-shadow:0 3px 0 #0b0e15; }
+  .res-stars span.on { color:var(--gold); text-shadow:0 3px 0 #b8452f; }
+  .res-best { border-top:1px solid var(--line); margin-top:4px; padding-top:6px; }
   /* resultados */
   #overStats { width:100%; max-width:340px; display:flex; flex-direction:column; gap:8px; line-height:1.4; }
   .res-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
@@ -184,7 +213,7 @@
 
 <div class="overlay show" id="menu">
   <h1 class="title">ELEMENTA</h1>
-  <div class="sub">SOBREVIVE 8 MINUTOS</div>
+  <div class="sub">DERROTA A LA HORDA</div>
   <div class="showcase">
     <button class="arrow" id="prevS" aria-label="Anterior">‹</button>
     <div class="vitrina" id="vitrina"><canvas id="showCv" width="108" height="108"></canvas></div>
@@ -195,21 +224,41 @@
   <button class="btn chip" id="btnSkin" style="display:none">Color: Normal</button>
   <div class="s-desc" id="sDesc"></div>
   <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
-  <div class="map-sel">
-    <button class="arrow sm" id="prevM" aria-label="Mapa anterior">‹</button>
-    <div class="map-text"><div id="mapName"></div><div class="map-info" id="mapInfo"></div></div>
-    <button class="arrow sm" id="nextM" aria-label="Mapa siguiente">›</button>
-  </div>
-  <button class="btn chip" id="btnNight" style="display:none">😈 Pesadilla: No</button>
   <button class="btn main play" id="btnPlay">JUGAR</button>
-  <button class="btn daily" id="btnDaily">Desafío diario</button>
+  <div class="menu-row duo">
+    <button class="btn" id="btnClassic">Clásico</button>
+    <button class="btn daily" id="btnDaily">Desafío diario</button>
+  </div>
   <div class="menu-row">
     <button class="btn" id="btnShop">Mejoras</button>
     <button class="btn" id="btnMissions">Misiones</button>
     <button class="btn" id="btnDex">Criaturas</button>
     <button class="btn" id="btnSet">Ajustes</button>
   </div>
-  <div class="record"><span id="best"></span> · <span id="menuCoins"></span></div>
+  <div class="record"><span id="starsTotal"></span> · <span id="menuCoins"></span></div>
+</div>
+
+<div class="overlay" id="world">
+  <h2>Niveles</h2>
+  <p id="worldInfo"></p>
+  <div class="worlds" id="worldList"></div>
+  <button class="btn" id="worldBack">Volver</button>
+</div>
+
+<div class="overlay" id="classic">
+  <h2>Clásico</h2>
+  <p>Sobrevive 8 minutos y vence al jefe final.</p>
+  <div class="map-sel">
+    <button class="arrow sm" id="prevM" aria-label="Mapa anterior">‹</button>
+    <div class="map-text"><div id="mapName"></div><div class="map-info" id="mapInfo"></div></div>
+    <button class="arrow sm" id="nextM" aria-label="Mapa siguiente">›</button>
+  </div>
+  <button class="btn chip" id="btnNight" style="display:none">😈 Pesadilla: No</button>
+  <div class="record"><span id="best"></span></div>
+  <div class="row">
+    <button class="btn main" id="classicPlay">Jugar</button>
+    <button class="btn" id="classicBack">Volver</button>
+  </div>
 </div>
 
 <div class="overlay" id="daily">
@@ -252,7 +301,7 @@
 
 <div class="overlay" id="dex">
   <h2>Criaturas</h2>
-  <p>Evoluciona en el nivel 16 y en el nivel 32 para descubrirlas.</p>
+  <p>Evoluciona en el nivel 6 y en el nivel 12 para descubrirlas (en Clásico, 16 y 32).</p>
   <div class="dex" id="dexGrid"></div>
   <button class="btn" id="dexBack">Volver</button>
 </div>
@@ -293,7 +342,9 @@
   <h2 id="overTitle">Derrota</h2>
   <div class="stats" id="overStats"></div>
   <div class="row">
+    <button class="btn main" id="btnNext" style="display:none">Siguiente nivel</button>
     <button class="btn main" id="btnInf">Seguir: modo infinito</button>
+    <button class="btn" id="btnRetry" style="display:none">Reintentar</button>
     <button class="btn" id="btnAgain">Volver al menú</button>
   </div>
 </div>

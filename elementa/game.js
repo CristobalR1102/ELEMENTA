@@ -1218,6 +1218,19 @@ const MAPS = [
     elite: ['espectro', 'piedrin'], boss: ['espectro'], horde: 'espectro' },
 ];
 const DAILY_TIME = 300, DAILY_REWARD = 120;
+// ---------- Modo Niveles ----------
+// Cada mapa tiene 5 niveles: ganas al derrotar cierta cantidad de enemigos. El nivel 5 termina con el jefe del mapa.
+const LEVELS_PER_MAP = 5, LEVEL_GOALS = [50, 80, 110, 150, 150];
+const EVO_LEVELS_SHORT = [6, 12]; // en niveles cortos se evoluciona antes
+function levelGoal(m, i) { return Math.round(LEVEL_GOALS[i] * (1 + 0.25 * m) / 5) * 5; }
+function levelPar(m, i) { return Math.round(levelGoal(m, i) * 1.4 + (i === LEVELS_PER_MAP - 1 ? 60 : 0)); } // tiempo meta (3ª estrella)
+function levelsSave() { return load('elementa.levels', {}); }
+function lvData(m, i) { return levelsSave()[m + '-' + i] || null; }
+function lvStars(d) { return d ? 1 + (d.s2 ? 1 : 0) + (d.s3 ? 1 : 0) : 0; }
+function mapStars(m) { let n = 0; for (let i = 0; i < LEVELS_PER_MAP; i++) n += lvStars(lvData(m, i)); return n; }
+function totalStars() { let n = 0; for (let m = 0; m < MAPS.length; m++) n += mapStars(m); return n; }
+function levelOpen(m, i) { return m < mapsOpen() && (i === 0 || !!lvData(m, i - 1)); }
+function evoLevels() { return run.mode === 'level' ? EVO_LEVELS_SHORT : EVO_LEVELS; }
 const DAILY_MODS = [
   { name: 'Enemigos veloces', desc: 'Los enemigos se mueven 30% más rápido.', apply: { enemySpd: 1.3 } },
   { name: 'Lluvia de cristales', desc: 'Doble experiencia, pero muchos más enemigos.', apply: { xp: 2, spawn: 1.6 } },
@@ -1697,6 +1710,14 @@ function update(dt) {
     else return gameOver(false);
   }
   if (run.mode === 'daily' && !won && T >= DAILY_TIME) { won = true; winAt = T + 0.5; banner('¡Desafío completado!'); }
+  if (run.mode === 'level' && !won && kills >= run.goal) {
+    if (run.lvl < LEVELS_PER_MAP - 1) { won = true; winAt = T + 1; banner('¡Nivel superado!'); sfx('evolve'); }
+    else if (!run.bossOut) {
+      const n0 = enemies.length, map = MAPS[run.map];
+      spawnEnemy(pick(map.boss), { scale: 3, hpMul: 50, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final: true });
+      if (enemies.length > n0) { run.bossOut = true; sfx('boss'); banner('¡Jefe de ' + map.name + '! Derrótalo para ganar'); }
+    }
+  }
   if (won && T >= winAt) return gameOver(true);
   if (pendingRelic > 0) openRelic();
   else if (pendingLv > 0) openLevelUp();
@@ -1732,7 +1753,7 @@ function spawner(dt) {
     miniIdx++;
     if (run.infinite) nextInfMini = T + 90;
   }
-  const bossAllowed = run.mode === 'normal' ? !run.infinite : bossIdx === 0;
+  const bossAllowed = run.mode === 'normal' ? !run.infinite : run.mode === 'daily' ? bossIdx === 0 : false;
   if (bossAllowed && bossIdx < BOSS_TIMES.length && T >= BOSS_TIMES[bossIdx]) {
     const final = run.mode === 'normal' && bossIdx === BOSS_TIMES.length - 1;
     spawnEnemy(pick(map.boss), { scale: 3, hpMul: final ? 75 : 35, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final });
@@ -1856,7 +1877,7 @@ function choose(o) {
   else if (o.kind === 'new') p.moves.push({ id: o.id, lvl: 1, t: 0.2 });
   else p.moves.find((m) => m.id === o.id).lvl++;
   pendingLv--;
-  if (p.stage < EVO_LEVELS.length && p.level >= EVO_LEVELS[p.stage]) {
+  if (p.stage < evoLevels().length && p.level >= evoLevels()[p.stage]) {
     const before = pname(p);
     p.stage++;
     const hp = p.stage === 1 ? 30 : 50;
@@ -2137,7 +2158,7 @@ let lastHudLv = -1, lastHudKills = -1;
 function updateHud() {
   const lvKey = player.level * 10 + player.stage;
   if (lvKey !== lastHudLv) { lastHudLv = lvKey; $('hudLv').textContent = pname(player) + ' Nv ' + player.level; }
-  if (kills !== lastHudKills) { lastHudKills = kills; $('hudKills').textContent = kills + ' ☠'; }
+  if (kills !== lastHudKills) { lastHudKills = kills; $('hudKills').textContent = (run.mode === 'level' ? Math.min(kills, run.goal) + '/' + run.goal : kills) + ' ☠'; }
 }
 
 // ---------- Sonido ----------
@@ -2233,6 +2254,7 @@ const META_UP = {
   tercera: { name: 'Tercera Oportunidad', desc: 'Un segundo revivir por partida', max: 1, cost: () => 900, req: 'revivir' },
   arsenal: { name: 'Arsenal', desc: 'Empiezas con un ataque extra de tu tipo', max: 1, cost: () => 500 },
   buenojo: { name: 'Buen Ojo', desc: 'Los cofres ofrecen 4 reliquias', max: 1, cost: () => 450 },
+  inicio: { name: 'Experiencia Inicial', desc: 'Empiezas cada partida 1 nivel más arriba (no en el desafío diario)', max: 5, cost: steep(120, 110) },
   espacio: { name: 'Quinto Ataque', desc: 'Puedes llevar 5 ataques en vez de 4', max: 1, cost: () => 1500 },
 };
 function meta() { const m = Object.assign({ coins: 0, up: {} }, load('elementa.meta', {})); m.up = m.up || {}; return m; }
@@ -2249,6 +2271,7 @@ function applyMeta(p) {
   p.relicChoices = u.buenojo ? 4 : 3;
   p.maxMoves = 4 + (u.espacio || 0);
   p.arsenal = !!u.arsenal;
+  p.startLv = u.inicio || 0;
 }
 function runCoins(win) { return Math.floor(kills / 4 + T / 10 + (win ? 150 : 0)); }
 
@@ -2368,7 +2391,7 @@ function isOpen(type) {
   if (load('elementa.unlocked', []).indexOf(type) !== -1) return true;
   return type === 'elec' && hasWon(); // quien ya ganaba antes conserva a Voltín
 }
-function unlockText(type) { return 'Gana en ' + MAPS[UNLOCKS[type]].name + ' para desbloquearlo.'; }
+function unlockText(type) { return 'Completa ' + MAPS[UNLOCKS[type]].name + ' para desbloquearlo.'; }
 function unlock(type) {
   const u = load('elementa.unlocked', []);
   if (u.indexOf(type) === -1) { u.push(type); save('elementa.unlocked', u); }
@@ -2429,7 +2452,7 @@ function drawFoot(canvas, img, w, h) {
 function showMenu() {
   state = 'menu';
   $('hud').style.display = 'none';
-  for (const id of ['levelup', 'pause', 'over', 'dex', 'settings', 'shop', 'daily', 'missions']) $(id).classList.remove('show');
+  for (const id of ['levelup', 'pause', 'over', 'dex', 'settings', 'shop', 'daily', 'missions', 'world', 'classic']) $(id).classList.remove('show');
   tut.on = false; tutShow();
   updateMenuCoins();
   $('menu').classList.add('show');
@@ -2439,6 +2462,7 @@ function showMenu() {
     : 'Aún no tienes récord';
   const bn = load('elementa.bestNight', null);
   if (bn) $('best').innerHTML += ' · 😈 ' + fmt(bn.t);
+  $('starsTotal').innerHTML = '<span style="color:var(--gold)">★</span> ' + totalStars() + '/' + MAPS.length * LEVELS_PER_MAP * 3;
   selectStarter(0);
   selectMap(0);
   updateMenuBadges();
@@ -2466,7 +2490,11 @@ function buildMenu() {
   $('dots').innerHTML = TYPES.map(() => '<i></i>').join('');
   $('prevS').onclick = () => selectStarter(-1);
   $('nextS').onclick = () => selectStarter(1);
-  $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx]) && mapIdx < mapsOpen()) start(TYPES[selIdx], { map: mapIdx, night: nightOn }); };
+  $('btnPlay').onclick = () => { if (isOpen(TYPES[selIdx])) openWorld(); };
+  $('btnClassic').onclick = openClassic;
+  $('classicPlay').onclick = () => { if (isOpen(TYPES[selIdx]) && mapIdx < mapsOpen()) start(TYPES[selIdx], { map: mapIdx, night: nightOn }); };
+  $('classicBack').onclick = () => $('classic').classList.remove('show');
+  $('worldBack').onclick = () => $('world').classList.remove('show');
   $('btnSkin').onclick = cycleSkin;
   $('btnNight').onclick = () => { nightOn = !nightOn; save('elementa.night', nightOn); updateNightBtn(); };
   $('prevM').onclick = () => selectMap(-1);
@@ -2519,7 +2547,7 @@ function openDex() {
     drawFoot(c, open ? sp.r[0] : sp.dark[0], sp.w, sp.h);
     cell.appendChild(c);
     const label = document.createElement('span');
-    label.innerHTML = (open ? STARTERS[type].names[st] : '???') + '<small>' + (st ? 'Nv ' + EVO_LEVELS[st - 1] : 'Inicial') + '</small>';
+    label.innerHTML = (open ? STARTERS[type].names[st] : '???') + '<small>' + (st ? 'Nv ' + EVO_LEVELS_SHORT[st - 1] : 'Inicial') + '</small>';
     cell.appendChild(label);
     grid.appendChild(cell);
   }
@@ -2589,12 +2617,19 @@ function start(type, opts) {
   const mode = opts.mode || 'normal', mods = opts.mods || {}, mapI = opts.map || 0, map = MAPS[mapI];
   // primera partida (hasta tu primera victoria en la Pradera): enemigos un poco más débiles
   const easy = mode === 'normal' && mapI === 0 && !hasWon();
+  const lvl = opts.lvl || 0;
   run = { mode, map: mapI, mods, easy, infinite: false, stats: {}, winKills: 0, winT: 0,
     hpMul: map.diff * (easy ? 0.8 : 1), spdMul: mods.enemySpd || 1,
     dmgMul: (1 + (map.diff - 1) * 0.5) * (easy ? 0.75 : 1), xpMul: mods.xp || 1 };
   // Pesadilla: enemigos mucho más fuertes, el doble de monedas y récord aparte
   run.night = mode === 'normal' && !!opts.night;
   if (run.night) { run.hpMul *= 2.2; run.dmgMul *= 1.6; run.spdMul *= 1.1; }
+  if (mode === 'level') {
+    // cada nivel del mapa es un poco más duro: más vida y más enemigos a la vez
+    run.lvl = lvl; run.goal = levelGoal(mapI, lvl); run.par = levelPar(mapI, lvl); run.bossOut = false;
+    run.hpMul *= 1 + 0.12 * lvl; run.mods = Object.assign({}, mods, { spawn: 1 + 0.12 * lvl });
+    run.xpMul *= 1.4;
+  }
   run.skin = skinOf(type);
   buildGround(map);
   player = newPlayer(type);
@@ -2604,19 +2639,23 @@ function start(type, opts) {
     if (pool.length) player.moves.push({ id: pick(pool), lvl: 1, t: 0.5 });
   }
   if (easy) { player.maxHp += 20; player.hp = player.maxHp; }
+  if (player.startLv && mode !== 'daily') { // Experiencia Inicial: eliges esas mejoras al empezar
+    for (let k = 0; k < player.startLv; k++) { player.level++; player.xpNext = Math.floor(6 + player.level * 4 + player.level * player.level * 0.15); }
+  }
   if (mods.dmg) player.dmgMul *= mods.dmg;
   if (mods.hp) { player.maxHp = Math.round(player.maxHp * mods.hp); player.hp = player.maxHp; }
   if (mods.relic) { const id = pick(Object.keys(RELICS)); player.relics[id] = true; RELICS[id].apply(player); }
   musicStep = 0;
   T = 0; kills = 0; spawnT = 0; nextElite = 50; nextHorde = 75; bossIdx = 0; miniIdx = 0; pendingRelic = 0; won = false; winAt = -1;
   nextInfBoss = 0; nextInfMini = 0;
-  enemies = []; bullets = []; gems = []; fx = []; nums = []; zones = []; hazards = []; eshots = []; pendingLv = 0; uid = 0; hurtFlash = 0;
+  enemies = []; bullets = []; gems = []; fx = []; nums = []; zones = []; hazards = []; eshots = []; pendingLv = player.level - 1; uid = 0; hurtFlash = 0;
   lastHudLv = -1; lastHudKills = -1;
-  tut.on = mode === 'normal' && !load('elementa.tut', false); tut.step = 0; tut.t = 0; tut.moved = 0;
-  for (const id of ['menu', 'over', 'daily']) $(id).classList.remove('show');
+  tut.on = mode !== 'daily' && !load('elementa.tut', false); tut.step = 0; tut.t = 0; tut.moved = 0;
+  for (const id of ['menu', 'over', 'daily', 'world', 'classic']) $(id).classList.remove('show');
   $('hud').style.display = 'flex';
   updateHud(); tutShow();
   if (mode === 'daily') banner('Desafío: ' + (opts.modName || '') + '. ¡Sobrevive 5 minutos!');
+  else if (mode === 'level') banner(map.name + ' ' + (lvl + 1) + '/' + LEVELS_PER_MAP + ' · Derrota ' + run.goal + ' enemigos');
   else if (run.night) banner('😈 Pesadilla: ' + map.name);
   else if (mapI > 0) banner(map.name);
   state = 'play'; resetClock();
@@ -2643,6 +2682,16 @@ function gameOver(win) {
     parts.push(['Derrotados', Math.floor((kills - run.winKills) / 4)], ['Tiempo', Math.floor((T - run.winT) / 10)]);
     coins = Math.floor(((kills - run.winKills) / 4 + (T - run.winT) / 10) * map.diff);
     if (T > load('elementa.bestInf', 0)) { save('elementa.bestInf', T); lines.push('<span style="color:var(--gold)">¡Nuevo récord infinito!</span>'); }
+  } else if (run.mode === 'level') {
+    const lr = levelResult(win, p);
+    title = win ? (run.lvl === LEVELS_PER_MAP - 1 ? '¡' + map.name + ' completado!' : '¡Nivel superado!') : 'Derrota';
+    parts.push(['Derrotados', Math.floor(kills / 4)]);
+    if (win) parts.push(['Nivel superado', 20 + 10 * run.lvl]);
+    coins = Math.floor((kills / 4 + (win ? 20 + 10 * run.lvl : 0)) * map.diff);
+    if (lr.starCoins) { parts.push(['Estrellas nuevas', lr.starCoins]); coins += lr.starCoins; }
+    if (lr.bonus) coins += lr.bonus;
+    run.levelHtml = lr.html;
+    lines.push(...lr.lines);
   } else {
     parts.push(['Derrotados', Math.floor(kills / 4)], ['Tiempo', Math.floor(T / 10)]);
     if (win) parts.push(['Victoria', 150]);
@@ -2684,7 +2733,7 @@ function gameOver(win) {
   if (run.night) mults.push('×2 Pesadilla');
   coins = Math.floor(coins * (p.coinMul || 1) * (run.night ? 2 : 1));
   // victorias por mapa y por tipo (para los logros)
-  if (win && run.mode === 'normal' && !run.infinite) {
+  if (win && (run.mode === 'normal' && !run.infinite || run.mode === 'level' && run.lvl === LEVELS_PER_MAP - 1)) {
     const wm = load('elementa.wonMaps', []), wt = load('elementa.wonTypes', []);
     if (wm.indexOf(run.map) === -1) { wm.push(run.map); save('elementa.wonMaps', wm); }
     if (wt.indexOf(p.type) === -1) { wt.push(p.type); save('elementa.wonTypes', wt); }
@@ -2704,14 +2753,98 @@ function gameOver(win) {
   sfx(win ? 'win' : 'lose');
   if (missionsReady()) lines.push('<span style="color:var(--gold)">¡Tienes misiones para reclamar!</span>');
   $('overTitle').textContent = title;
-  $('overStats').innerHTML = resultsHtml(p, coins, parts, mults, achCoins, lines);
+  $('overStats').innerHTML = resultsHtml(p, coins, parts, mults, achCoins, lines, run.mode === 'level' ? run.levelHtml : '');
   $('btnInf').style.display = win && run.mode === 'normal' && !run.infinite ? '' : 'none';
+  const isLv = run.mode === 'level', nx = nextLevel();
+  $('btnNext').style.display = isLv && win && nx ? '' : 'none';
+  $('btnRetry').style.display = isLv ? '' : 'none';
+  $('btnRetry').className = 'btn' + (isLv && !win ? ' main' : '');
+  $('btnAgain').textContent = isLv ? 'Mapa' : 'Volver al menú';
   $('over').classList.add('show');
 }
+// Guarda estrellas y mejor tiempo del nivel, entrega premios y arma el bloque de estrellas de la pantalla final
+function levelResult(win, p) {
+  const m = run.map, i = run.lvl, key = m + '-' + i, all = levelsSave(), old = all[key] || null;
+  const out = { lines: [], starCoins: 0, bonus: 0, html: '' };
+  const got = [win, win && p.hp >= p.maxHp / 2, win && T <= run.par];
+  const conds = ['Derrotar ' + run.goal + ' enemigos' + (i === LEVELS_PER_MAP - 1 ? ' y al jefe' : ''), 'Terminar con más de la mitad de la vida', 'Terminar en menos de ' + fmt(run.par)];
+  if (win) {
+    const d = { s2: !!(old && old.s2) || got[1], s3: !!(old && old.s3) || got[2], best: old ? Math.min(old.best, T) : T };
+    const fresh = lvStars(d) - lvStars(old);
+    out.starCoins = fresh * Math.round(20 * MAPS[m].diff);
+    all[key] = d; save('elementa.levels', all);
+    if (old && T < old.best) out.lines.push('<span style="color:var(--gold)">¡Nuevo mejor tiempo!</span>');
+    if (!old && i === LEVELS_PER_MAP - 1) out.bonus = mapReward(m, out.lines); // primera vez que completas el mapa
+  }
+  const d = all[key];
+  let h = '<div class="res-stars">';
+  for (let k = 0; k < 3; k++) h += '<span class="' + (got[k] ? 'on' : '') + '">★</span>';
+  h += '</div><div class="res-box">';
+  for (let k = 0; k < 3; k++) h += '<div class="res-row"><span class="res-n">' + (got[k] ? '✓ ' : '✗ ') + conds[k] + '</span></div>';
+  if (d) h += '<div class="res-row res-best"><span class="res-n">Mejor tiempo</span><span class="res-v">' + fmt(d.best) + '</span></div>';
+  out.html = h + '</div>';
+  return out;
+}
+// premio al completar un mapa por primera vez: la criatura siguiente o, si no hay, un color
+function mapReward(m, lines) {
+  let bonus = 0;
+  if (m + 1 < MAPS.length && load('elementa.maps', 1) < m + 2) {
+    save('elementa.maps', m + 2);
+    lines.push('<span style="color:var(--gold)">¡Nuevo mapa: ' + MAPS[m + 1].name + '!</span>');
+  }
+  let gave = false;
+  for (const t in UNLOCKS) {
+    if (UNLOCKS[t] === m && load('elementa.unlocked', []).indexOf(t) === -1) {
+      unlock(t); gave = true;
+      lines.push('<span style="color:var(--gold)">¡Desbloqueaste a ' + STARTERS[t].names[0] + ' (' + TYPE_NAME[t] + ')!</span>');
+    }
+  }
+  if (!gave && !Object.keys(UNLOCKS).some((t) => UNLOCKS[t] === m)) {
+    const owned = skinsOwned(), sk = SKINS.find((x) => owned.indexOf(x.id) === -1);
+    if (sk) { owned.push(sk.id); save('elementa.skins', owned); lines.push('<span style="color:var(--gold)">¡Ganaste el color ' + sk.name + '!</span>'); }
+    else { bonus = 300; lines.push('<span style="color:var(--gold)">¡Premio del mapa: +300 monedas!</span>'); }
+  }
+  return bonus;
+}
+function nextLevel() {
+  if (run.mode !== 'level') return null;
+  if (run.lvl + 1 < LEVELS_PER_MAP) return levelOpen(run.map, run.lvl + 1) ? { map: run.map, lvl: run.lvl + 1 } : null;
+  return run.map + 1 < MAPS.length && levelOpen(run.map + 1, 0) ? { map: run.map + 1, lvl: 0 } : null;
+}
+// ---------- Pantalla del mapa de niveles ----------
+function openWorld() {
+  const type = TYPES[selIdx];
+  $('worldInfo').innerHTML = 'Juegas con <b>' + STARTERS[type].names[0] + '</b> · <span style="color:var(--gold)">★ ' + totalStars() + '/' + MAPS.length * LEVELS_PER_MAP * 3 + '</span>';
+  let h = '', focus = -1;
+  for (let m = 0; m < MAPS.length; m++) {
+    const map = MAPS[m], open = m < mapsOpen();
+    h += '<div class="world' + (open ? '' : ' locked') + '" id="world' + m + '" style="--g1:' + map.ground[0] + ';--g2:' + map.ground[2] + '">';
+    h += '<div class="world-h"><span>' + (open ? '' : '🔒 ') + map.name + '</span><span class="world-s">★ ' + mapStars(m) + '/' + LEVELS_PER_MAP * 3 + '</span></div>';
+    if (!open) h += '<div class="world-lock">Completa ' + MAPS[m - 1].name + ' para abrirlo</div>';
+    h += '<div class="nodes">';
+    for (let i = 0; i < LEVELS_PER_MAP; i++) {
+      const d = lvData(m, i), lo = levelOpen(m, i), boss = i === LEVELS_PER_MAP - 1;
+      if (lo && !d && focus < 0) focus = m;
+      const st = lvStars(d);
+      h += '<div class="node-w"><button class="node' + (d ? ' done' : lo ? ' open' : ' locked') + (boss ? ' boss' : '') + '" data-m="' + m + '" data-i="' + i + '"' + (lo ? '' : ' disabled') + '>' +
+        (boss ? '👑' : i + 1) + '</button><small>' + (d ? '<b>' + '★'.repeat(st) + '</b>' + '★'.repeat(3 - st).replace(/★/g, '☆') : lo ? levelGoal(m, i) + '☠' : '') + '</small></div>';
+    }
+    h += '</div></div>';
+  }
+  $('worldList').innerHTML = h;
+  $('worldList').querySelectorAll('.node').forEach((b) => {
+    b.onclick = () => { if (isOpen(TYPES[selIdx])) start(TYPES[selIdx], { mode: 'level', map: +b.dataset.m, lvl: +b.dataset.i }); };
+  });
+  $('world').classList.add('show');
+  const f = $('world' + (focus < 0 ? 0 : focus));
+  $('world').scrollTop = 0;
+  if (focus > 0) f.scrollIntoView({ block: 'center' });
+}
+function openClassic() { $('classic').classList.add('show'); selectMap(0); updateNightBtn(); }
 // Pantalla de resultados: resumen, daño por ataque, quién te hirió y monedas desglosadas
-function resultsHtml(p, coins, parts, mults, achCoins, lines) {
+function resultsHtml(p, coins, parts, mults, achCoins, lines, top) {
   const num = (v) => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v));
-  let h = '<div class="res-tiles"><div><b>' + fmt(T) + '</b><small>Tiempo</small></div><div><b>' + p.level + '</b><small>Nivel</small></div>' +
+  let h = (top || '') + '<div class="res-tiles"><div><b>' + fmt(T) + '</b><small>Tiempo</small></div><div><b>' + p.level + '</b><small>Nivel</small></div>' +
     '<div><b>' + kills + '</b><small>Derrotados</small></div></div>';
   // daño por ataque
   const dmg = Object.entries(run.dmg || {}).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]);
@@ -2769,7 +2902,8 @@ const TUT_TEXT = [
 function tutShow() {
   const h = $('hint');
   if (!tut.on) { h.classList.remove('show'); return; }
-  h.textContent = TUT_TEXT[tut.step]; h.classList.add('show');
+  h.textContent = tut.step === 3 && run.mode === 'level' ? '¡Bien! Derrota ' + run.goal + ' enemigos para ganar' : TUT_TEXT[tut.step];
+  h.classList.add('show');
 }
 function tutUpdate(dt) {
   if (!tut.on) return;
@@ -2879,7 +3013,7 @@ function missionsReady() { return missionsState().list.some((m) => { const [c, t
 function finishRunStats(win) {
   const st = load('elementa.stats', {}), r = run.stats;
   for (const k of ['kills', 'minis', 'chests', 'evos', 'fusions']) st[k] = (st[k] || 0) + (r[k] || 0);
-  if (win && run.mode === 'normal' && !run.infinite) st.wins = (st.wins || 0) + 1;
+  if (win && (run.mode === 'normal' && !run.infinite || run.mode === 'level' && run.lvl === LEVELS_PER_MAP - 1)) st.wins = (st.wins || 0) + 1;
   if (win && run.mode === 'daily') st.dailies = (st.dailies || 0) + 1;
   save('elementa.stats', st);
   run.stats = {};
@@ -2941,15 +3075,18 @@ function updateNightBtn() {
   b.classList.toggle('on', nightOn);
 }
 function updatePlayBtn() {
-  const ok = isOpen(TYPES[selIdx]) && mapIdx < mapsOpen();
-  $('btnPlay').disabled = !ok;
-  $('btnPlay').textContent = ok ? 'JUGAR' : 'BLOQUEADO';
+  const open = isOpen(TYPES[selIdx]), ok = open && mapIdx < mapsOpen();
+  $('btnPlay').disabled = !open;
+  $('btnPlay').textContent = open ? 'JUGAR' : 'BLOQUEADO';
+  $('classicPlay').disabled = !ok;
 }
 $('btnPause').addEventListener('click', togglePause);
 $('btnResume').addEventListener('click', togglePause);
 $('btnQuit').addEventListener('click', () => { finishRunStats(false); showMenu(); });
 $('btnInf').addEventListener('click', startInfinite);
-$('btnAgain').addEventListener('click', showMenu);
+$('btnAgain').addEventListener('click', () => { const lv = run.mode === 'level'; showMenu(); if (lv) openWorld(); });
+$('btnRetry').addEventListener('click', () => start(player.type, { mode: 'level', map: run.map, lvl: run.lvl }));
+$('btnNext').addEventListener('click', () => { const n = nextLevel(); if (n) start(player.type, { mode: 'level', map: n.map, lvl: n.lvl }); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
 
 // ---------- Bucle principal ----------
