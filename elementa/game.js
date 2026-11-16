@@ -1219,12 +1219,12 @@ const MAPS = [
 ];
 const DAILY_TIME = 300, DAILY_REWARD = 120;
 // ---------- Modo Niveles ----------
-// Cada mapa tiene 5 niveles: ganas al derrotar cierta cantidad de enemigos. El nivel 5 termina con el jefe del mapa.
-const LEVELS_PER_MAP = 5, LEVEL_GOALS = [50, 80, 110, 150, 150];
-const EVO_LEVELS_SHORT = [6, 12]; // en niveles cortos se evoluciona antes
-function levelGoal(m, i) { return Math.round(LEVEL_GOALS[i] * (1 + 0.25 * m) / 5) * 5; }
-function levelPar(m, i) { return Math.round(levelGoal(m, i) * 1.4 + (i === LEVELS_PER_MAP - 1 ? 60 : 0)); } // tiempo meta (3ª estrella)
-function levelsSave() { return load('elementa.levels', {}); }
+// Cada mapa tiene 5 niveles de 3 minutos: ganas al sobrevivir. En el nivel 5, a los 3 minutos sale el jefe del mapa.
+// Derrotar cierta cantidad de enemigos da la 3ª estrella.
+const LEVELS_PER_MAP = 5, LEVEL_TIME = 180, LEVEL_GOALS = [350, 420, 490, 560, 630];
+const EVO_LEVELS_SHORT = [8, 16]; // en niveles cortos se evoluciona antes
+function levelGoal(m, i) { return Math.round(LEVEL_GOALS[i] * (1 + 0.2 * m) / 10) * 10; }
+function levelsSave() { return load('elementa.lv3', {}); }
 function lvData(m, i) { return levelsSave()[m + '-' + i] || null; }
 function lvStars(d) { return d ? 1 + (d.s2 ? 1 : 0) + (d.s3 ? 1 : 0) : 0; }
 function mapStars(m) { let n = 0; for (let i = 0; i < LEVELS_PER_MAP; i++) n += lvStars(lvData(m, i)); return n; }
@@ -1710,12 +1710,13 @@ function update(dt) {
     else return gameOver(false);
   }
   if (run.mode === 'daily' && !won && T >= DAILY_TIME) { won = true; winAt = T + 0.5; banner('¡Desafío completado!'); }
-  if (run.mode === 'level' && !won && kills >= run.goal) {
+  if (run.mode === 'level' && !won && T >= LEVEL_TIME) {
     if (run.lvl < LEVELS_PER_MAP - 1) { won = true; winAt = T + 1; banner('¡Nivel superado!'); sfx('evolve'); }
     else if (!run.bossOut) {
       const n0 = enemies.length, map = MAPS[run.map];
       spawnEnemy(pick(map.boss), { scale: 3, hpMul: 50, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final: true });
       if (enemies.length > n0) { run.bossOut = true; sfx('boss'); banner('¡Jefe de ' + map.name + '! Derrótalo para ganar'); }
+      else run.bossOut = false;
     }
   }
   if (won && T >= winAt) return gameOver(true);
@@ -2132,8 +2133,9 @@ function render() {
   // HUD: barra de experiencia y tiempo
   ctx.fillStyle = '#1a1c2c'; ctx.fillRect(0, 0, W, 4);
   ctx.fillStyle = '#73eff7'; ctx.fillRect(0, 1, Math.round(W * p.xp / p.xpNext), 2);
-  const tt = Math.floor(T), ts = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0');
-  drawText(ts, (W - textWidth(ts, 2)) / 2, 8, T >= WIN_TIME - 30 ? 'y' : 'w', 2);
+  const lvMode = run.mode === 'level', left = LEVEL_TIME - T;
+  const tt = Math.floor(lvMode ? (left > 0 ? Math.ceil(left) : T) : T), ts = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0');
+  drawText(ts, (W - textWidth(ts, 2)) / 2, 8, (lvMode ? left <= 30 : T >= WIN_TIME - 30) ? 'y' : 'w', 2);
 
   if (hurtFlash > 0) { ctx.fillStyle = 'rgba(177,62,83,.25)'; ctx.fillRect(0, 0, W, H); }
 
@@ -2158,7 +2160,7 @@ let lastHudLv = -1, lastHudKills = -1;
 function updateHud() {
   const lvKey = player.level * 10 + player.stage;
   if (lvKey !== lastHudLv) { lastHudLv = lvKey; $('hudLv').textContent = pname(player) + ' Nv ' + player.level; }
-  if (kills !== lastHudKills) { lastHudKills = kills; $('hudKills').textContent = (run.mode === 'level' ? Math.min(kills, run.goal) + '/' + run.goal : kills) + ' ☠'; }
+  if (kills !== lastHudKills) { lastHudKills = kills; $('hudKills').textContent = kills + (run.mode === 'level' ? '/' + run.goal + (kills >= run.goal ? ' ★' : '') : '') + ' ☠'; }
 }
 
 // ---------- Sonido ----------
@@ -2626,9 +2628,10 @@ function start(type, opts) {
   if (run.night) { run.hpMul *= 2.2; run.dmgMul *= 1.6; run.spdMul *= 1.1; }
   if (mode === 'level') {
     // cada nivel del mapa es un poco más duro: más vida y más enemigos a la vez
-    run.lvl = lvl; run.goal = levelGoal(mapI, lvl); run.par = levelPar(mapI, lvl); run.bossOut = false;
-    run.hpMul *= 1 + 0.12 * lvl; run.mods = Object.assign({}, mods, { spawn: 1 + 0.12 * lvl });
-    run.xpMul *= 1.4;
+    // cada nivel del mapa: enemigos con más vida, más enemigos a la vez y un poco más de daño
+    run.lvl = lvl; run.goal = levelGoal(mapI, lvl); run.bossOut = false;
+    run.hpMul *= 1 + 0.18 * lvl; run.dmgMul *= 1 + 0.06 * lvl; run.mods = Object.assign({}, mods, { spawn: 1 + 0.15 * lvl });
+    run.xpMul *= 1.25;
   }
   run.skin = skinOf(type);
   buildGround(map);
@@ -2655,7 +2658,7 @@ function start(type, opts) {
   $('hud').style.display = 'flex';
   updateHud(); tutShow();
   if (mode === 'daily') banner('Desafío: ' + (opts.modName || '') + '. ¡Sobrevive 5 minutos!');
-  else if (mode === 'level') banner(map.name + ' ' + (lvl + 1) + '/' + LEVELS_PER_MAP + ' · Derrota ' + run.goal + ' enemigos');
+  else if (mode === 'level') banner(map.name + ' ' + (lvl + 1) + '/' + LEVELS_PER_MAP + ' · ¡Sobrevive 3 minutos!');
   else if (run.night) banner('😈 Pesadilla: ' + map.name);
   else if (mapI > 0) banner(map.name);
   state = 'play'; resetClock();
@@ -2685,9 +2688,9 @@ function gameOver(win) {
   } else if (run.mode === 'level') {
     const lr = levelResult(win, p);
     title = win ? (run.lvl === LEVELS_PER_MAP - 1 ? '¡' + map.name + ' completado!' : '¡Nivel superado!') : 'Derrota';
-    parts.push(['Derrotados', Math.floor(kills / 4)]);
+    parts.push(['Derrotados', Math.floor(kills / 4)], ['Tiempo', Math.floor(T / 10)]);
     if (win) parts.push(['Nivel superado', 20 + 10 * run.lvl]);
-    coins = Math.floor((kills / 4 + (win ? 20 + 10 * run.lvl : 0)) * map.diff);
+    coins = Math.floor((kills / 4 + T / 10 + (win ? 20 + 10 * run.lvl : 0)) * map.diff);
     if (lr.starCoins) { parts.push(['Estrellas nuevas', lr.starCoins]); coins += lr.starCoins; }
     if (lr.bonus) coins += lr.bonus;
     run.levelHtml = lr.html;
@@ -2762,18 +2765,18 @@ function gameOver(win) {
   $('btnAgain').textContent = isLv ? 'Mapa' : 'Volver al menú';
   $('over').classList.add('show');
 }
-// Guarda estrellas y mejor tiempo del nivel, entrega premios y arma el bloque de estrellas de la pantalla final
+// Guarda estrellas y récord (más enemigos derrotados) del nivel, entrega premios y arma el bloque de estrellas de la pantalla final
 function levelResult(win, p) {
   const m = run.map, i = run.lvl, key = m + '-' + i, all = levelsSave(), old = all[key] || null;
   const out = { lines: [], starCoins: 0, bonus: 0, html: '' };
-  const got = [win, win && p.hp >= p.maxHp / 2, win && T <= run.par];
-  const conds = ['Derrotar ' + run.goal + ' enemigos' + (i === LEVELS_PER_MAP - 1 ? ' y al jefe' : ''), 'Terminar con más de la mitad de la vida', 'Terminar en menos de ' + fmt(run.par)];
+  const got = [win, win && p.hp >= p.maxHp / 2, win && kills >= run.goal];
+  const conds = ['Sobrevivir 3 minutos' + (i === LEVELS_PER_MAP - 1 ? ' y vencer al jefe' : ''), 'Terminar con más de la mitad de la vida', 'Derrotar ' + run.goal + ' enemigos'];
   if (win) {
-    const d = { s2: !!(old && old.s2) || got[1], s3: !!(old && old.s3) || got[2], best: old ? Math.min(old.best, T) : T };
+    const d = { s2: !!(old && old.s2) || got[1], s3: !!(old && old.s3) || got[2], best: old ? Math.max(old.best, kills) : kills };
     const fresh = lvStars(d) - lvStars(old);
     out.starCoins = fresh * Math.round(20 * MAPS[m].diff);
-    all[key] = d; save('elementa.levels', all);
-    if (old && T < old.best) out.lines.push('<span style="color:var(--gold)">¡Nuevo mejor tiempo!</span>');
+    all[key] = d; save('elementa.lv3', all);
+    if (old && kills > old.best) out.lines.push('<span style="color:var(--gold)">¡Nuevo récord del nivel!</span>');
     if (!old && i === LEVELS_PER_MAP - 1) out.bonus = mapReward(m, out.lines); // primera vez que completas el mapa
   }
   const d = all[key];
@@ -2781,7 +2784,7 @@ function levelResult(win, p) {
   for (let k = 0; k < 3; k++) h += '<span class="' + (got[k] ? 'on' : '') + '">★</span>';
   h += '</div><div class="res-box">';
   for (let k = 0; k < 3; k++) h += '<div class="res-row"><span class="res-n">' + (got[k] ? '✓ ' : '✗ ') + conds[k] + '</span></div>';
-  if (d) h += '<div class="res-row res-best"><span class="res-n">Mejor tiempo</span><span class="res-v">' + fmt(d.best) + '</span></div>';
+  if (d) h += '<div class="res-row res-best"><span class="res-n">Récord del nivel</span><span class="res-v">' + d.best + ' ☠</span></div>';
   out.html = h + '</div>';
   return out;
 }
@@ -2827,7 +2830,7 @@ function openWorld() {
       if (lo && !d && focus < 0) focus = m;
       const st = lvStars(d);
       h += '<div class="node-w"><button class="node' + (d ? ' done' : lo ? ' open' : ' locked') + (boss ? ' boss' : '') + '" data-m="' + m + '" data-i="' + i + '"' + (lo ? '' : ' disabled') + '>' +
-        (boss ? '👑' : i + 1) + '</button><small>' + (d ? '<b>' + '★'.repeat(st) + '</b>' + '★'.repeat(3 - st).replace(/★/g, '☆') : lo ? levelGoal(m, i) + '☠' : '') + '</small></div>';
+        (boss ? '👑' : i + 1) + '</button><small>' + (d ? '<b>' + '★'.repeat(st) + '</b>' + '★'.repeat(3 - st).replace(/★/g, '☆') : lo ? '3:00' : '') + '</small></div>';
     }
     h += '</div></div>';
   }
@@ -2902,7 +2905,7 @@ const TUT_TEXT = [
 function tutShow() {
   const h = $('hint');
   if (!tut.on) { h.classList.remove('show'); return; }
-  h.textContent = tut.step === 3 && run.mode === 'level' ? '¡Bien! Derrota ' + run.goal + ' enemigos para ganar' : TUT_TEXT[tut.step];
+  h.textContent = tut.step === 3 && run.mode === 'level' ? '¡Bien! Sobrevive 3 minutos para ganar' : TUT_TEXT[tut.step];
   h.classList.add('show');
 }
 function tutUpdate(dt) {
