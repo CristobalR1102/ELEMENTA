@@ -1003,7 +1003,7 @@ Object.assign(MOVES, {
       let ok = false;
       for (let i = 0; i < n; i++) {
         const e = randomEnemy(120); if (!e) break; ok = true;
-        e.cursedT = T + 4; e.curseDmg = 2 + m.lvl;
+        e.cursedT = T + 4; e.curseDmg = 2 + m.lvl; e.curseSrc = srcMove;
         addFx('ring', e.x, e.y, e.r + 5, 0.3, '#b48ce0');
       }
       return ok;
@@ -1293,7 +1293,7 @@ function newPlayer(type) {
   };
 }
 function addBullet(x, y, vx, vy, dmg, type, pierce, life, spr, r, aoe) {
-  const b = { x, y, vx, vy, dmg, type, pierce, life, spr, r, aoe, kb: 25, hit: [] };
+  const b = { x, y, vx, vy, dmg, type, pierce, life, spr, r, aoe, kb: 25, hit: [], src: srcMove };
   bullets.push(b);
   return b;
 }
@@ -1311,7 +1311,7 @@ function zoneBlast(z) {
     if (d < z.r * 1.3 + e.r) hurt(e, z.blast, z.type, dx / d * 120, dy / d * 120);
   });
 }
-function addZone(z) { if (zones.length < 80) { z.tickT = 0; zones.push(z); } }
+function addZone(z) { if (zones.length < 80) { z.tickT = 0; if (z.src === undefined) z.src = srcMove; zones.push(z); } }
 function onScreen(e) { return Math.abs(e.x - player.x) < W / 2 && Math.abs(e.y - player.y) < H / 2; }
 function randomEnemy(maxR) {
   tmp.length = 0;
@@ -1350,12 +1350,15 @@ function spawnEnemy(kind, opts) {
   });
 }
 // daño al jugador (contacto, golpes y proyectiles de jefes)
-function hurtPlayer(dmg, type) {
+function hurtPlayer(dmg, type, who) {
   const p = player;
   if (p.inv > 0) return;
   const m = eff(type, p.type), mm = m > 1 ? 1.5 : m < 1 ? 0.66 : 1;
   if (p.relics.escudo && p.shieldT <= 0) { p.shieldT = 8; p.inv = 0.5; addFx('ring', p.x, p.y, 20, 0.3, '#a5f0ff'); sfx('block'); return; }
-  p.hp -= dmg * mm * (1 + T / 400); p.inv = 0.5; hurtFlash = 0.15; sfx('hurt', 150);
+  const taken = Math.min(Math.max(0, p.hp), dmg * mm * (1 + T / 400));
+  const hb = run.hurtBy || (run.hurtBy = {}), wk = who || 'Ataques de jefe';
+  hb[wk] = (hb[wk] || 0) + taken;
+  p.hp -= dmg * mm * (1 + T / 400); p.inv = 0.5; hurtFlash = 0.15; p.hitAt = T; sfx('hurt', 150);
   if (run.firstHitT === undefined) run.firstHitT = T;
 }
 // Jefes: cada pocos segundos eligen un ataque y lo avisan antes de que golpee
@@ -1393,6 +1396,14 @@ function bossRelease(e) {
     sfx('boom', 120);
   } else if (e.atk === 'charge') e.chargeT = 0.55;
 }
+// para la pantalla de resultados: qué ataque está haciendo daño ahora mismo
+let srcMove = null;
+const ENEMY_NAME = { murci: 'Murciélago', charco: 'Charco', brasa: 'Brasa', hongo: 'Hongo', chispa: 'Chispa', piedrin: 'Piedrín',
+  murcihielo: 'Murcihielo', cristalino: 'Cristalino', magmon: 'Magmón', cenizo: 'Cenizo', lodo: 'Lodo', moscon: 'Moscón', espectro: 'Espectro' };
+function enemyName(e) {
+  const n = ENEMY_NAME[e.kind] || e.kind;
+  return e.boss ? 'Jefe ' + n : e.mini ? n + ' élite' : n;
+}
 function hurt(e, base, atkType, kbx, kby) {
   if (e.dead) return;
   const m = eff(atkType, e.type);
@@ -1400,6 +1411,8 @@ function hurt(e, base, atkType, kbx, kby) {
   const crit = player.relics.critico && Math.random() < 0.2;
   const curse = e.cursedT > T ? 1.4 : 1;
   const d = Math.max(1, Math.round(base * player.dmgMul * m * stab * (crit ? 2.5 : 1) * curse * rand(0.9, 1.1)));
+  const dmgMap = run.dmg || (run.dmg = {}), key = srcMove || '_';
+  dmgMap[key] = (dmgMap[key] || 0) + Math.min(d, Math.max(0, e.hp));
   e.hp -= d; e.flash = 0.08;
   sfx('hit', 70);
   e.kx += kbx * e.kbRes; e.ky += kby * e.kbRes;
@@ -1478,6 +1491,7 @@ function update(dt) {
   p.x += ix * p.speed * dt; p.y += iy * p.speed * dt;
   if (ix > 0.1) p.face = 1; else if (ix < -0.1) p.face = -1;
   p.moving = ix !== 0 || iy !== 0;
+  p.moveA = (p.moveA || 0) + ((p.moving ? 1 : 0) - (p.moveA || 0)) * Math.min(1, dt * 10);
   if (p.moving) { const l = Math.hypot(ix, iy); p.dirX = ix / l; p.dirY = iy / l; }
   p.inv -= dt; hurtFlash -= dt;
   if (p.regen) p.hp = Math.min(p.maxHp, p.hp + p.regen * dt);
@@ -1488,10 +1502,16 @@ function update(dt) {
   // ataques
   for (const m of p.moves) {
     const def = MOVES[m.id];
+    srcMove = m.id;
     if (def.tick) def.tick(m, dt);
     m.t -= dt;
-    if (m.t <= 0) m.t = def.fire(m) === false ? 0.2 : def.cd(m.lvl) * p.cdMul;
+    if (m.t <= 0) {
+      const ok = def.fire(m) !== false;
+      m.t = ok ? def.cd(m.lvl) * p.cdMul : 0.2;
+      if (ok && T - (p.atkAt ?? -9) > 0.7) p.atkAt = T; // pequeño empujón al atacar (no en cada disparo)
+    }
   }
+  srcMove = null;
 
   // reliquias
   if (p.relics.nova) { p.novaT -= dt; if (p.novaT <= 0) { p.novaT = 6; nova(); } }
@@ -1512,6 +1532,7 @@ function update(dt) {
   // proyectiles
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+    srcMove = b.src;
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.boomer !== undefined) { // bumerán: tras un momento vuelve hacia ti
       b.boomer -= dt;
@@ -1558,13 +1579,14 @@ function update(dt) {
     });
     if (b.life <= 0) { bullets[i] = bullets[bullets.length - 1]; bullets.pop(); }
   }
+  srcMove = null;
 
   // enemigos
   for (const e of enemies) {
     if (e.dead) continue;
     if (e.cursedT > T) { // maldición: daño cada medio segundo
       e.curseTick = (e.curseTick || 0) - dt;
-      if (e.curseTick <= 0) { e.curseTick = 0.5; hurt(e, e.curseDmg, 'ghost', 0, 0); }
+      if (e.curseTick <= 0) { e.curseTick = 0.5; srcMove = e.curseSrc; hurt(e, e.curseDmg, 'ghost', 0, 0); srcMove = null; }
       if (e.dead) continue;
     }
     let dx = p.x - e.x, dy = p.y - e.y;
@@ -1587,7 +1609,7 @@ function update(dt) {
     e.x += (dx / d * spd + e.kx) * dt; e.y += (dy / d * spd + e.ky) * dt;
     const decay = Math.min(1, dt * 9); e.kx -= e.kx * decay; e.ky -= e.ky * decay;
     e.flash -= dt;
-    if (d < e.r + STAGE_RADIUS[p.stage] && p.inv <= 0) hurtPlayer(e.dmg, e.type);
+    if (d < e.r + STAGE_RADIUS[p.stage] && p.inv <= 0) hurtPlayer(e.dmg, e.type, enemyName(e));
   }
   // separación suave entre enemigos de la misma celda
   for (let c = 0; c < cellHead.length; c++) {
@@ -1644,6 +1666,7 @@ function update(dt) {
   // zonas en el suelo (géiser, meteoro, fuego, raíces)
   for (let i = zones.length - 1; i >= 0; i--) {
     const z = zones[i];
+    srcMove = z.src;
     if (z.delay > 0) {
       z.delay -= dt;
       if (z.delay <= 0 && z.burst) addFx(z.burst, z.x, z.y, z.r, 0.3, z.col);
@@ -1661,6 +1684,7 @@ function update(dt) {
       if (z.life <= 0) { if (z.blast) zoneBlast(z); zones[i] = zones[zones.length - 1]; zones.pop(); }
     }
   }
+  srcMove = null;
 
   // efectos y números
   for (let i = fx.length - 1; i >= 0; i--) { fx[i].life -= dt; if (fx[i].life <= 0) { fx[i] = fx[fx.length - 1]; fx.pop(); } }
@@ -1967,9 +1991,10 @@ function render() {
   // los pies quedan siempre en la misma línea; las evoluciones crecen hacia arriba
   const ps = skinSprite(p.type + (p.stage ? p.stage + 1 : ''), run.skin);
   const foot = (H >> 1) + 8, px = (W >> 1) - (ps.w >> 1), py = foot - ps.h;
-  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(px + 3, foot - 1, ps.w - 6, 2);
-  const fr = p.moving ? ((T * 8) | 0) & 1 : ((T * 2.5) | 0) & 1;
-  if (p.inv <= 0 || ((T * 20) | 0) % 2) ctx.drawImage((p.face > 0 ? ps.r : ps.l)[fr], px, py, ps.w, ps.h);
+  const pst = { t: T, move: p.moveA || 0, face: p.face, hurt: Math.max(0, 1 - (T - (p.hitAt ?? -9)) / 0.25), atk: Math.max(0, 1 - (T - (p.atkAt ?? -9)) / 0.18) };
+  const lift = Math.abs(Math.sin(T * 9)) * 2 * pst.move;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(px + 3 + (lift > 1 ? 1 : 0), foot - 1, ps.w - 6 - (lift > 1 ? 2 : 0), 2);
+  if (p.inv <= 0 || ((T * 20) | 0) % 2) drawAlive(ctx, (p.face > 0 ? ps.r : ps.l)[0], W >> 1, foot, ps.w, ps.h, pst);
   if (p.stage === 2 && ((T * 3) | 0) % 2) { ctx.fillStyle = '#ffcd75'; ctx.fillRect(px - 1, py + 4, 1, 1); ctx.fillRect(px + ps.w, py + 10, 1, 1); }
   // barra de vida
   const bx = (W >> 1) - 8;
@@ -2355,6 +2380,43 @@ function markSeen(type, stage) {
   const s = seen();
   if (s[type] < stage) { s[type] = stage; save('elementa.seen', s); }
 }
+// ---------- Animación por deformación ----------
+// Dibuja una criatura viva a partir de una sola imagen: respira, se mece (más arriba que abajo),
+// da saltitos al caminar, se inclina hacia donde va, se estira al atacar y se aplasta al recibir daño.
+// g trabaja en píxeles lógicos; (x, foot) = centro de los pies; w, h = tamaño lógico.
+// st: { t, move 0..1, face ±1, hurt 0..1, atk 0..1, seed }
+function drawAlive(g, img, x, foot, w, h, st) {
+  const t = st.t + (st.seed || 0), mv = st.move || 0, hu = st.hurt || 0, at = st.atk || 0, face = st.face || 1;
+  const br = Math.sin(t * 3.2);
+  let sx = 1 + 0.035 * br * (1 - mv), sy = 1 - 0.035 * br * (1 - mv);
+  // saltitos al caminar: estirado en el aire, aplastado al tocar el suelo
+  const hop = Math.abs(Math.sin(t * 9)), k = hop * 2 - 1;
+  const lift = hop * 2 * mv;
+  sy *= 1 + 0.07 * k * mv; sx *= 1 - 0.06 * k * mv;
+  // golpe recibido y ataque
+  sx *= 1 + 0.2 * hu; sy *= 1 - 0.18 * hu;
+  sx *= 1 + 0.06 * at; sy *= 1 - 0.06 * at;
+  const shear = face * (0.1 * mv + 0.22 * at);       // la parte de arriba se adelanta
+  const sway = 0.7 + 0.5 * mv;                         // vaivén de la parte de arriba (px)
+  const shake = hu > 0 ? Math.sin(t * 90) * hu * 1.2 : 0;
+  const rows = Math.max(1, Math.round(h)), srcH = img.height / rows, dh = h * sy / rows;
+  const top = foot - lift - h * sy, dw = w * sx;
+  for (let i = 0; i < rows; i++) {
+    const f = 1 - (i + 0.5) / rows;                    // 1 arriba, 0 en los pies
+    const off = shear * f * h + Math.sin(t * 2.3 - f * 1.4) * sway * f * f + shake;
+    g.drawImage(img, 0, i * srcH, img.width, srcH, x - dw / 2 + off, top + i * dh, dw, dh + 0.4);
+  }
+  return lift;
+}
+// igual que drawFoot pero animado (vitrina del menú y otras pantallas)
+function drawFootAlive(canvas, img, w, h, st) {
+  const g = canvas.getContext('2d'), k = canvas.width / 36;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, canvas.width, canvas.height);
+  g.setTransform(k, 0, 0, k, 0, 0);
+  drawAlive(g, img, 18, canvas.height / k - 1.5, w, h, st);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+}
 // dibuja un sprite con los pies apoyados abajo y centrado en un lienzo
 function drawFoot(canvas, img, w, h) {
   // el lienzo representa 36 píxeles lógicos; w y h vienen en píxeles lógicos
@@ -2508,9 +2570,9 @@ function renderScene() {
   for (const o of tmp) {
     const s = o.spr;
     if (o.vx !== undefined) {
-      const moving = o.vx || o.vy, fr = ((scene.t * (moving ? 6 : 2)) | 0) & 1;
+      const moving = o.vx || o.vy;
       ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect((o.x - s.w / 2 + 2) | 0, (o.y - 1) | 0, s.w - 4, 2);
-      ctx.drawImage((o.face > 0 ? s.r : s.l)[fr], (o.x - s.w / 2) | 0, (o.y - s.h) | 0, s.w, s.h);
+      drawAlive(ctx, (o.face > 0 ? s.r : s.l)[0], o.x, o.y, s.w, s.h, { t: scene.t * 0.8, move: moving ? 1 : 0, face: o.face, seed: o.x * 0.13 });
     } else {
       const x = ((o.x - cam) % SCENE_SPAN + SCENE_SPAN) % SCENE_SPAN - 40;
       ctx.drawImage(s.r[0], x | 0, (o.y - s.h) | 0);
@@ -2518,8 +2580,8 @@ function renderScene() {
   }
 }
 function drawShowcase() {
-  const type = TYPES[selIdx], sp = isOpen(type) ? skinSprite(type, skinOf(type)) : SPR[type], fr = ((scene.t * 2.5) | 0) & 1;
-  drawFoot($('showCv'), (isOpen(type) ? sp.r : sp.dark)[fr], sp.w, sp.h);
+  const type = TYPES[selIdx], sp = isOpen(type) ? skinSprite(type, skinOf(type)) : SPR[type];
+  drawFootAlive($('showCv'), (isOpen(type) ? sp.r : sp.dark)[0], sp.w, sp.h, { t: scene.t, face: 1 });
 }
 function hasWon() { const b = load('elementa.best', null); return !!(b && b.win); }
 function start(type, opts) {
@@ -2574,13 +2636,16 @@ function gameOver(win) {
   state = 'over'; joy.on = false;
   render();
   tut.on = false; tutShow();
-  const p = player, map = MAPS[run.map], lines = [];
+  const p = player, map = MAPS[run.map], lines = [], parts = [];
   let title = win ? '¡Victoria!' : 'Derrota', coins;
   if (run.infinite) {
     title = 'Fin del modo infinito';
+    parts.push(['Derrotados', Math.floor((kills - run.winKills) / 4)], ['Tiempo', Math.floor((T - run.winT) / 10)]);
     coins = Math.floor(((kills - run.winKills) / 4 + (T - run.winT) / 10) * map.diff);
     if (T > load('elementa.bestInf', 0)) { save('elementa.bestInf', T); lines.push('<span style="color:var(--gold)">¡Nuevo récord infinito!</span>'); }
   } else {
+    parts.push(['Derrotados', Math.floor(kills / 4)], ['Tiempo', Math.floor(T / 10)]);
+    if (win) parts.push(['Victoria', 150]);
     coins = Math.floor(runCoins(win) * map.diff);
     if (run.mode === 'normal') {
       const best = load('elementa.best', null);
@@ -2608,11 +2673,15 @@ function gameOver(win) {
     } else {
       title = win ? '¡Desafío completado!' : 'Desafío fallido';
       if (win && !dailyDone()) {
-        coins += DAILY_REWARD; save('elementa.daily', todayKey());
+        coins += DAILY_REWARD; save('elementa.daily', todayKey()); parts.push(['Premio diario', DAILY_REWARD]);
         lines.push('<span style="color:var(--gold)">Premio del desafío diario incluido</span>');
       }
     }
   }
+  const mults = [];
+  if (map.diff !== 1) mults.push('×' + +map.diff.toFixed(2) + ' mapa');
+  if ((p.coinMul || 1) !== 1) mults.push('×' + +(p.coinMul).toFixed(2) + ' Codicia');
+  if (run.night) mults.push('×2 Pesadilla');
   coins = Math.floor(coins * (p.coinMul || 1) * (run.night ? 2 : 1));
   // victorias por mapa y por tipo (para los logros)
   if (win && run.mode === 'normal' && !run.infinite) {
@@ -2629,15 +2698,47 @@ function gameOver(win) {
     dailies: load('elementa.stats', {}).dailies || 0, nightWon: !!(bn && bn.win),
     wonMaps: load('elementa.wonMaps', []).length, wonTypes: load('elementa.wonTypes', []).length,
   });
-  for (const a of fresh) { coins += a.reward; lines.push('<span style="color:var(--gold)">🏅 Logro: ' + a.name + ' (+' + a.reward + ')</span>'); }
+  let achCoins = 0;
+  for (const a of fresh) { coins += a.reward; achCoins += a.reward; lines.push('<span style="color:var(--gold)">🏅 Logro: ' + a.name + ' (+' + a.reward + ')</span>'); }
   const m = meta(); m.coins += coins; save('elementa.meta', m);
   sfx(win ? 'win' : 'lose');
   if (missionsReady()) lines.push('<span style="color:var(--gold)">¡Tienes misiones para reclamar!</span>');
   $('overTitle').textContent = title;
-  $('overStats').innerHTML = 'Tiempo ' + fmt(T) + '<br>Nivel ' + p.level + '<br>Derrotados ' + kills +
-    '<br><span style="color:var(--gold)"><span class="coin"></span> +' + coins + ' monedas</span>' + lines.map((l) => '<br>' + l).join('');
+  $('overStats').innerHTML = resultsHtml(p, coins, parts, mults, achCoins, lines);
   $('btnInf').style.display = win && run.mode === 'normal' && !run.infinite ? '' : 'none';
   $('over').classList.add('show');
+}
+// Pantalla de resultados: resumen, daño por ataque, quién te hirió y monedas desglosadas
+function resultsHtml(p, coins, parts, mults, achCoins, lines) {
+  const num = (v) => v >= 10000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v));
+  let h = '<div class="res-tiles"><div><b>' + fmt(T) + '</b><small>Tiempo</small></div><div><b>' + p.level + '</b><small>Nivel</small></div>' +
+    '<div><b>' + kills + '</b><small>Derrotados</small></div></div>';
+  // daño por ataque
+  const dmg = Object.entries(run.dmg || {}).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]);
+  const total = dmg.reduce((t, [, v]) => t + v, 0);
+  if (dmg.length) {
+    h += '<div class="res-box"><div class="res-h">Daño por ataque <span>' + num(total) + '</span></div>';
+    for (const [id, v] of dmg.slice(0, 6)) {
+      const mv = MOVES[id], name = mv ? mv.name : 'Reliquias y otros', col = mv && mv.type ? TYPE_COL[mv.type] : '#94a0b8';
+      h += '<div class="res-row"><span class="res-n">' + name + '</span><span class="res-bar"><i style="width:' +
+        Math.max(3, Math.round(100 * v / dmg[0][1])) + '%;background:' + col + '"></i></span><span class="res-v">' + num(v) + '</span></div>';
+    }
+    h += '</div>';
+  }
+  // quién te hizo más daño
+  const hb = Object.entries(run.hurtBy || {}).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]);
+  h += '<div class="res-box"><div class="res-h">Te hizo más daño</div>';
+  h += hb.length ? hb.slice(0, 2).map(([n, v]) => '<div class="res-row"><span class="res-n">' + n + '</span><span class="res-v">' + num(v) + ' de vida</span></div>').join('')
+    : '<div class="res-row"><span class="res-n" style="color:var(--gold)">¡Nadie te tocó!</span></div>';
+  h += '</div>';
+  // monedas
+  h += '<div class="res-box"><div class="res-h">Monedas</div>';
+  for (const [n, v] of parts) h += '<div class="res-row"><span class="res-n">' + n + '</span><span class="res-v">+' + v + '</span></div>';
+  if (mults.length) h += '<div class="res-row"><span class="res-n">Bonos</span><span class="res-v">' + mults.join(' · ') + '</span></div>';
+  if (achCoins) h += '<div class="res-row"><span class="res-n">Logros</span><span class="res-v">+' + achCoins + '</span></div>';
+  h += '<div class="res-row res-total"><span class="res-n">Total</span><span class="res-v"><span class="coin"></span> +' + coins + '</span></div></div>';
+  if (lines.length) h += '<div class="res-lines">' + lines.join('<br>') + '</div>';
+  return h;
 }
 // Modo infinito: después de ganar, seguir hasta caer
 // En infinito ganas una ranura de ataque al entrar y otra por cada jefe que derrotes (máximo 8)

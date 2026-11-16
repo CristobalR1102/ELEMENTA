@@ -101,6 +101,10 @@
   #menu > :last-child { margin-bottom:auto; }
   /* sin esto, en pantallas bajas los elementos se encogen y el texto se monta encima de lo siguiente */
   .overlay > * { flex-shrink:0; }
+  /* centrado que no corta la parte de arriba cuando la lista es más alta que la pantalla */
+  .overlay { justify-content:flex-start; }
+  .overlay > :first-child { margin-top:auto; }
+  .overlay > :last-child { margin-bottom:auto; }
   .vitrina { height:130px; }
   .vitrina canvas { width:120px; height:120px; }
   .s-desc { min-height:0; }
@@ -147,6 +151,22 @@
     .menu-row .btn { padding:8px 0; }
     .record { padding:4px 10px; }
   }
+  /* resultados */
+  #overStats { width:100%; max-width:340px; display:flex; flex-direction:column; gap:8px; line-height:1.4; }
+  .res-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .res-tiles div { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:6px 2px; }
+  .res-tiles b { display:block; font-size:18px; }
+  .res-tiles small { color:var(--dim); font-size:10px; font-weight:400; }
+  .res-box { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:8px 10px; text-align:left; font-size:12px; }
+  .res-h { color:var(--dim); font-size:11px; margin-bottom:4px; display:flex; justify-content:space-between; }
+  .res-row { display:flex; align-items:center; gap:8px; padding:2px 0; }
+  .res-n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .res-bar { flex:1.2; height:6px; background:#141821; border-radius:3px; overflow:hidden; }
+  .res-bar i { display:block; height:100%; }
+  .res-v { white-space:nowrap; color:var(--text); }
+  .res-total { border-top:1px solid var(--line); margin-top:4px; padding-top:6px; color:var(--gold); font-size:14px; }
+  .res-total .res-v { color:var(--gold); }
+  .res-lines { font-size:12px; }
   .dex { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; width:100%; max-width:340px; }
   .dex div { background:var(--panel); border:2px solid var(--line); border-radius:12px; padding:6px 2px; font-size:11px; }
   .dex canvas { width:72px; height:72px; display:block; margin:0 auto 2px; }
