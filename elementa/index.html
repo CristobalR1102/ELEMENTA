@@ -202,6 +202,19 @@
   .dex div { background:var(--panel); border:2px solid var(--line); border-radius:12px; padding:6px 2px; font-size:11px; }
   .dex canvas { width:72px; height:72px; display:block; margin:0 auto 2px; }
   .dex small { display:block; color:var(--dim); font-weight:400; font-size:10px; }
+  /* pie del menú: datos del jugador + enlace al otro juego, en una sola fila para no alargar el menú */
+  .foot { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:stretch; max-width:100%; }
+  .foot .record { white-space:nowrap; }
+  a.promo { color:var(--gold); text-decoration:none; border-color:#6b5a34; }
+  a.promo:active { border-color:var(--gold); }
+  /* racha diaria */
+  .streak-track { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; width:100%; max-width:330px; }
+  .streak-track div { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:6px 0; font-size:11px; line-height:1.5; color:var(--dim); }
+  .streak-track small { display:block; font-size:10px; font-weight:400; }
+  .streak-track .got { border-color:#6b5a34; color:var(--gold); }
+  .streak-track .now { border-color:var(--gold); background:#3d2e14; color:var(--gold); transform:scale(1.08); box-shadow:0 0 12px rgba(255,205,117,.35); }
+  #btnShare { padding:12px; } /* compacto: así cabe en la misma fila que Reintentar y Mapa */
+  .streak-coins { font-size:26px; color:var(--gold); text-shadow:0 3px 0 #7a2a1f; }
 </style>
 </head>
 <body>
@@ -237,7 +250,10 @@
     <button class="btn" id="btnDex">Criaturas</button>
     <button class="btn" id="btnSet">Ajustes</button>
   </div>
-  <div class="record"><span id="starsTotal"></span> · <span id="menuCoins"></span></div>
+  <div class="foot">
+    <div class="record"><span id="starsTotal"></span> · <span id="menuCoins"></span><span id="menuStreak"></span></div>
+    <a class="record promo" id="btnTorres" href="https://elementa-torres.cristobalr1102.workers.dev">🏰 Elementa Torres</a>
+  </div>
 </div>
 
 <div class="overlay" id="world">
@@ -313,6 +329,7 @@
   <label class="toggle"><input type="checkbox" id="optSfx"> Efectos de sonido</label>
   <label class="toggle"><input type="checkbox" id="optMusic"> Música</label>
   <label class="toggle"><input type="checkbox" id="lowPower"> Modo ahorro (30 FPS, menos calor)</label>
+  <label class="toggle" id="optVibRow"><input type="checkbox" id="optVib"> Vibración</label>
   <div class="chart">Cómo jugar: mueve con el dedo, tu criatura ataca sola.<br><br>
     Agua › Fuego › Planta › Agua<br>Eléctrico › Agua · Planta › Eléctrico<br>
     Hielo › Planta · Fuego › Hielo<br>Roca › Fuego y Hielo · Agua y Planta › Roca<br>
@@ -348,7 +365,16 @@
     <button class="btn main" id="btnInf">Seguir: modo infinito</button>
     <button class="btn" id="btnRetry" style="display:none">Reintentar</button>
     <button class="btn" id="btnAgain">Volver al menú</button>
+    <button class="btn" id="btnShare" style="display:none">Compartir</button>
   </div>
+</div>
+
+<div class="overlay" id="streak">
+  <h2 id="streakTitle">Racha de 1 día</h2>
+  <p>Entra cada día para ganar más monedas. Si faltas un día, la racha vuelve a empezar.</p>
+  <div class="streak-track" id="streakTrack"></div>
+  <div class="streak-coins" id="streakCoins"></div>
+  <button class="btn main" id="streakOk">¡Genial!</button>
 </div>
 
 <script src="game.js"></script>

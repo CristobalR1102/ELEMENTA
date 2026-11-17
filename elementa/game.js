@@ -1274,6 +1274,9 @@ let run = { mode: 'normal', map: 0, mods: {}, easy: false, infinite: false, stat
 let pendingLv = 0, uid = 0, hurtFlash = 0;
 let lowPower = load('elementa.low', false);
 let dirty = true;
+// Golpe de efecto (evolución, jefes): cámara lenta breve + destello blanco + temblor. En modo ahorro no se usa.
+let hitStop = 0, whiteT = 0, shakeT = 0;
+function juice(t) { if (lowPower) return; hitStop = t; whiteT = 0.2; shakeT = t; }
 
 // ---------- Rejilla espacial (colisiones sin generar basura) ----------
 const CELL = 24, MARGIN = 64, MAXE = 220;
@@ -1406,7 +1409,7 @@ function hurtPlayer(dmg, type, who) {
   const taken = Math.min(Math.max(0, p.hp), dmg * mm * (1 + T / 400));
   const hb = run.hurtBy || (run.hurtBy = {}), wk = who || 'Ataques de jefe';
   hb[wk] = (hb[wk] || 0) + taken;
-  p.hp -= dmg * mm * (1 + T / 400); p.inv = 0.5; hurtFlash = 0.15; p.hitAt = T; sfx('hurt', 150);
+  p.hp -= dmg * mm * (1 + T / 400); p.inv = 0.5; hurtFlash = 0.15; p.hitAt = T; sfx('hurt', 150); buzz(25);
   if (run.firstHitT === undefined) run.firstHitT = T;
 }
 // Jefes: cada pocos segundos eligen un ataque y lo avisan antes de que golpee
@@ -1474,8 +1477,9 @@ function kill(e) {
   sfx('kill', 60);
   addFx('puff', e.x, e.y, e.r, 0.25, '#f4f4f4');
   if (player.relics.robo) player.hp = Math.min(player.maxHp, player.hp + 1);
-  if (e.mini) { gems.push({ x: e.x, y: e.y, v: 0, chest: true, mag: false }); banner('¡Recoge el cofre!'); }
+  if (e.mini) { gems.push({ x: e.x, y: e.y, v: 0, chest: true, mag: false }); banner('¡Recoge el cofre!'); buzz(60); juice(0.2); }
   if (e.boss) {
+    buzz([60, 40, 140]); juice(0.4); addFx('ring', e.x, e.y, 70, 0.5, '#f4f4f4'); sfx('boom');
     run.bossKills = (run.bossKills || 0) + 1;
     for (let i = 0; i < 12; i++) dropGem(e.x + rand(-20, 20), e.y + rand(-20, 20), 25);
     gems.push({ x: e.x, y: e.y, v: 0, berry: true, mag: false });
@@ -1705,7 +1709,7 @@ function update(dt) {
     if (!g.mag && d < p.magnet) g.mag = true;
     if (g.mag) { const sp = 160 * dt / (d || 1); g.x += dx * Math.min(1, sp); g.y += dy * Math.min(1, sp); }
     if (d < 7) {
-      if (g.chest) { pendingRelic++; sfx('chest'); run.stats.chests = (run.stats.chests || 0) + 1; }
+      if (g.chest) { pendingRelic++; sfx('chest'); buzz(50); run.stats.chests = (run.stats.chests || 0) + 1; }
       else if (g.berry) { p.hp = Math.min(p.maxHp, p.hp + 30); addFx('puff', p.x, p.y, 8, 0.3, '#ff8fa3'); }
       else gainXp(g.v);
       gems[i] = gems[gems.length - 1]; gems.pop();
@@ -1755,7 +1759,7 @@ function update(dt) {
     else if (!run.bossOut) {
       const n0 = enemies.length, map = MAPS[run.map];
       spawnEnemy(pick(map.boss), { scale: 3, hpMul: 50, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final: true });
-      if (enemies.length > n0) { run.bossOut = true; sfx('boss'); banner('¡Jefe de ' + map.name + '! Derrótalo para ganar'); }
+      if (enemies.length > n0) { run.bossOut = true; sfx('boss'); buzz(BUZZ_BOSS); banner('¡Jefe de ' + map.name + '! Derrótalo para ganar'); }
       else run.bossOut = false;
     }
   }
@@ -1790,7 +1794,7 @@ function spawner(dt) {
   const miniAt = miniIdx < MINI_TIMES.length ? MINI_TIMES[miniIdx] / (md.mini || 1) : (run.infinite ? nextInfMini : Infinity);
   if (T >= miniAt) {
     spawnEnemy(pick(map.elite), { scale: 2, hpMul: 22 + miniIdx * 6, xpMul: 15, dmgMul: 2, spdMul: 0.95, mini: true });
-    banner('¡Minijefe! Derrótalo y abre su cofre'); sfx('boss');
+    banner('¡Minijefe! Derrótalo y abre su cofre'); sfx('boss'); buzz(BUZZ_BOSS);
     miniIdx++;
     if (run.infinite) nextInfMini = T + 90;
   }
@@ -1798,14 +1802,14 @@ function spawner(dt) {
   if (bossAllowed && bossIdx < BOSS_TIMES.length && T >= BOSS_TIMES[bossIdx]) {
     const final = run.mode === 'normal' && bossIdx === BOSS_TIMES.length - 1;
     spawnEnemy(pick(map.boss), { scale: 3, hpMul: final ? 75 : 35, xpMul: 1, dmgMul: 2.5, spdMul: 0.75, boss: true, final });
-    sfx('boss');
+    sfx('boss'); buzz(BUZZ_BOSS);
     banner(final ? '¡Jefe final de ' + map.name + '!' : '¡Apareció un jefe!');
     bossIdx++;
   }
   if (run.infinite && T >= nextInfBoss) {
     nextInfBoss = T + 120;
     spawnEnemy(pick(map.boss), { scale: 3, hpMul: 75 * (1 + (T - 480) / 240), xpMul: 1, dmgMul: 2.8, spdMul: 0.8, boss: true });
-    sfx('boss'); banner('¡Jefe del modo infinito!');
+    sfx('boss'); buzz(BUZZ_BOSS); banner('¡Jefe del modo infinito!');
   }
 }
 
@@ -1876,7 +1880,7 @@ const TYPE_ICON = { water: '💧', fire: '🔥', plant: '🌿', elec: '⚡', ice
 function typeIcon(icon, col) { return '<div class="ticon" style="border-color:' + col + ';background:' + col + '33">' + icon + '</div>'; }
 function openLevelUp() {
   state = 'levelup'; joy.on = false;
-  $('lvTitle').textContent = '¡Subiste de nivel!'; sfx('level');
+  $('lvTitle').textContent = '¡Subiste de nivel!'; sfx('level'); buzz(30);
   const box = $('choices'); box.innerHTML = '';
   const maxM = player.maxMoves || MAX_MOVES, full = player.moves.length >= maxM;
   $('lvMoves').innerHTML = 'Nivel ' + player.level + ' · Ataques ' + player.moves.length + '/' + maxM +
@@ -1929,6 +1933,7 @@ function choose(o) {
     p.maxHp += hp; p.hp = p.maxHp; p.dmgMul += p.stage === 1 ? 0.15 : 0.25; p.speed += 3;
     addFx('ring', p.x, p.y, 60, 0.6, '#ffcd75');
     banner('¡' + before + ' evolucionó en ' + pname(p) + '!'); sfx('evolve');
+    buzz([40, 40, 80, 40, 160]); juice(0.4); // se nota al volver a la partida, justo después de elegir
     markSeen(p.type, p.stage);
     run.stats.evos = (run.stats.evos || 0) + 1;
   }
@@ -1945,7 +1950,8 @@ function drawRot(img, x, y, ang, alpha) {
 function render() {
   ctx.setTransform(RS, 0, 0, RS, 0, 0); // todo se dibuja en coordenadas lógicas; el lienzo es RS veces más grande
   const p = player;
-  const cx = Math.round(p.x) - (W >> 1), cy = Math.round(p.y) - (H >> 1);
+  const shk = shakeT > 0 ? Math.min(1, shakeT / 0.2) * 3 : 0; // temblor: solo se mueve el mundo, no el HUD
+  const cx = Math.round(p.x) - (W >> 1) + (((Math.random() - 0.5) * 2 * shk) | 0), cy = Math.round(p.y) - (H >> 1) + (((Math.random() - 0.5) * 2 * shk) | 0);
   // suelo
   const ox = ((cx % 64) + 64) % 64, oy = ((cy % 64) + 64) % 64;
   ctx.save(); ctx.translate(-ox, -oy); ctx.fillStyle = groundPat; ctx.fillRect(0, 0, W + 64, H + 64); ctx.restore();
@@ -2277,6 +2283,7 @@ function render() {
   drawText(ts, (W - textWidth(ts, 2)) / 2, 8, (lvMode ? left <= 30 : T >= WIN_TIME - 30) ? 'y' : 'w', 2);
 
   if (hurtFlash > 0) { ctx.fillStyle = 'rgba(177,62,83,.25)'; ctx.fillRect(0, 0, W, H); }
+  if (whiteT > 0) { ctx.globalAlpha = Math.min(0.5, whiteT * 2.5); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 
   // joystick
   if (joy.on) {
@@ -2357,6 +2364,31 @@ function sfx(name, minGapMs) {
   if (now - (audio.last[name] || 0) < (minGapMs || 0)) return;
   audio.last[name] = now;
   SFX[name]();
+}
+// Vibración: solo en momentos importantes. En iPhone no existe y simplemente no hace nada.
+let vibOn = load('elementa.vib', true);
+const BUZZ_BOSS = [80, 50, 80];
+function buzz(pattern) {
+  if (!vibOn || !navigator.vibrate || (navigator.userActivation && !navigator.userActivation.hasBeenActive)) return; // antes del primer toque el navegador la bloquea
+  try { navigator.vibrate(pattern); } catch (e) {}
+}
+// Pantalla encendida mientras juegas: se pide al empezar o seguir, y se suelta en pausa, final y menú.
+let wakeLock = null, wakeBusy = false;
+const inRun = () => state === 'play' || state === 'levelup';
+function wakeOn() {
+  if (wakeLock || wakeBusy || !navigator.wakeLock || document.hidden) return;
+  try {
+    wakeBusy = true;
+    navigator.wakeLock.request('screen').then((l) => {
+      wakeBusy = false; wakeLock = l;
+      l.addEventListener('release', () => { if (wakeLock === l) wakeLock = null; });
+      if (!inRun()) wakeOff(); // la partida terminó mientras se pedía
+    }).catch(() => { wakeBusy = false; });
+  } catch (e) { wakeBusy = false; }
+}
+function wakeOff() {
+  const l = wakeLock; wakeLock = null;
+  if (l) try { l.release().catch(() => {}); } catch (e) {}
 }
 // Música: un bucle original en escala pentatónica, generado una vez con notas al azar
 const SCALE = [0, 3, 5, 7, 10, 12, 15];
@@ -2609,6 +2641,8 @@ function showMenu() {
   updateMenuBadges();
   updateNightBtn();
   if (!scene.mobs.length) initScene();
+  wakeOff();
+  checkStreak();
 }
 function fmt(t) { t = Math.floor(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
 
@@ -2669,6 +2703,14 @@ function buildMenu() {
   syncSoundButtons();
   const lp = $('lowPower'); lp.checked = lowPower;
   lp.onchange = () => { lowPower = lp.checked; save('elementa.low', lowPower); };
+  // vibración: si el teléfono no vibra (iPhone), la opción ni se muestra
+  const vb = $('optVib'); vb.checked = vibOn;
+  if (!navigator.vibrate) $('optVibRow').style.display = 'none';
+  vb.onchange = () => { vibOn = vb.checked; save('elementa.vib', vibOn); buzz(30); };
+  $('streakOk').onclick = () => { $('streak').classList.remove('show'); sfx('chest'); };
+  // compartir: si el navegador no puede compartir ni copiar, el botón no aparece
+  if (canShare()) $('btnShare').style.display = '';
+  $('btnShare').onclick = shareResult;
 }
 
 function syncSoundButtons() {
@@ -2800,7 +2842,8 @@ function start(type, opts) {
   else if (mode === 'level') banner(map.name + ' ' + (lvl + 1) + '/' + LEVELS_PER_MAP + ' · ¡Sobrevive 3 minutos!');
   else if (run.night) banner('😈 Pesadilla: ' + map.name);
   else if (mapI > 0) banner(map.name);
-  state = 'play'; resetClock();
+  hitStop = 0; whiteT = 0; shakeT = 0;
+  state = 'play'; resetClock(); wakeOn();
 }
 function togglePause() {
   if (state === 'play') {
@@ -2808,14 +2851,16 @@ function togglePause() {
     $('pauseInfo').innerHTML = pname(player) + ' · Nv ' + player.level + '<br>' +
       player.moves.map((m) => MOVES[m.id].name + ' ' + m.lvl).join(' · ') +
       (Object.keys(player.relics).length ? '<br>Reliquias: ' + Object.keys(player.relics).map((id) => RELICS[id].name).join(' · ') : '');
-    $('pause').classList.add('show');
+    $('pause').classList.add('show'); wakeOff();
   } else if (state === 'pause') {
-    $('pause').classList.remove('show'); state = 'play'; resetClock();
+    $('pause').classList.remove('show'); state = 'play'; resetClock(); wakeOn();
   }
 }
 function gameOver(win) {
   state = 'over'; joy.on = false;
+  hitStop = 0; whiteT = 0; shakeT = 0; // la imagen final queda limpia, sin destello
   render();
+  wakeOff(); buzz(win ? [60, 60, 60, 60, 200] : [200, 80, 300]);
   tut.on = false; tutShow();
   const p = player, map = MAPS[run.map], lines = [], parts = [];
   let title = win ? '¡Victoria!' : 'Derrota', coins;
@@ -2832,7 +2877,7 @@ function gameOver(win) {
     coins = Math.floor((kills / 4 + T / 10 + (win ? 20 + 10 * run.lvl : 0)) * map.diff);
     if (lr.starCoins) { parts.push(['Estrellas nuevas', lr.starCoins]); coins += lr.starCoins; }
     if (lr.bonus) coins += lr.bonus;
-    run.levelHtml = lr.html;
+    run.levelHtml = lr.html; run.stars = lr.stars;
     lines.push(...lr.lines);
   } else {
     parts.push(['Derrotados', Math.floor(kills / 4)], ['Tiempo', Math.floor(T / 10)]);
@@ -2902,13 +2947,45 @@ function gameOver(win) {
   $('btnRetry').style.display = isLv ? '' : 'none';
   $('btnRetry').className = 'btn' + (isLv && !win ? ' main' : '');
   $('btnAgain').textContent = isLv ? 'Mapa' : 'Volver al menú';
+  shareText = buildShare(win, p, map);
+  $('btnShare').textContent = 'Compartir';
   $('over').classList.add('show');
+}
+// Compartir resultado: usa el menú de compartir del teléfono; si no hay, copia el texto.
+const GAME_URL = 'https://elementa-e8p.pages.dev';
+let shareText = '', shareTimer = 0;
+function canShare() { return !!(navigator.share || (navigator.clipboard && navigator.clipboard.writeText)); }
+function buildShare(win, p, map) {
+  let where;
+  if (run.infinite) where = 'Modo infinito · ' + map.name;
+  else if (run.mode === 'level') where = map.name + ' ' + (run.lvl + 1) + '/' + LEVELS_PER_MAP + (win ? ' ' + '★'.repeat(run.stars || 0) + '☆'.repeat(3 - (run.stars || 0)) : '');
+  else if (run.mode === 'daily') where = 'Desafío diario · ' + map.name;
+  else where = (run.night ? '😈 Pesadilla · ' : 'Clásico · ') + map.name;
+  return 'ELEMENTA · ' + where + '\n' + (win ? '🏆 ¡Victoria!' : '💀 Caí luchando') + ' ⏱ ' + fmt(T) + ' · ☠ ' + kills + ' · ' + pname(p) + ' Nv ' + p.level + '\n¿Me superas?';
+}
+function shareResult() {
+  const b = $('btnShare');
+  const copy = () => {
+    if (!(navigator.clipboard && navigator.clipboard.writeText)) return;
+    try {
+      navigator.clipboard.writeText(shareText + '\n' + GAME_URL).then(() => {
+        b.textContent = '¡Copiado!'; clearTimeout(shareTimer);
+        shareTimer = setTimeout(() => { b.textContent = 'Compartir'; }, 1600);
+      }).catch(() => {});
+    } catch (e) {}
+  };
+  if (navigator.share) {
+    // si el jugador cierra el menú de compartir no pasa nada; si falla por otra razón, se copia
+    try { navigator.share({ title: 'Elementa', text: shareText, url: GAME_URL }).catch((e) => { if (!e || e.name !== 'AbortError') copy(); }); }
+    catch (e) { copy(); }
+  } else copy();
 }
 // Guarda estrellas y récord (más enemigos derrotados) del nivel, entrega premios y arma el bloque de estrellas de la pantalla final
 function levelResult(win, p) {
   const m = run.map, i = run.lvl, key = m + '-' + i, all = levelsSave(), old = all[key] || null;
   const out = { lines: [], starCoins: 0, bonus: 0, html: '' };
   const got = [win, win && p.hp >= p.maxHp / 2, win && kills >= run.goal];
+  out.stars = got.filter(Boolean).length;
   const conds = ['Sobrevivir 3 minutos' + (i === LEVELS_PER_MAP - 1 ? ' y vencer al jefe' : ''), 'Terminar con más de la mitad de la vida', 'Derrotar ' + run.goal + ' enemigos'];
   if (win) {
     const d = { s2: !!(old && old.s2) || got[1], s3: !!(old && old.s3) || got[2], best: old ? Math.max(old.best, kills) : kills };
@@ -3030,7 +3107,7 @@ function startInfinite() {
   won = false; winAt = -1; nextInfBoss = T + 120; nextInfMini = T + 60;
   banner('¡Modo infinito! Aguanta todo lo que puedas');
   addMoveSlot();
-  state = 'play'; resetClock();
+  state = 'play'; resetClock(); wakeOn();
 }
 
 // ---------- Tutorial (solo la primera vez) ----------
@@ -3060,6 +3137,31 @@ function tutUpdate(dt) {
 // ---------- Desafío diario ----------
 function todayKey() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
 function dailyDone() { return load('elementa.daily', '') === todayKey(); }
+// Racha diaria: la primera vez que ves el menú cada día ganas monedas; más días seguidos, más monedas.
+const STREAK_COINS = [20, 30, 40, 50, 70, 90, 150];
+function yesterdayKey() { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function streakNow() { // racha vigente (0 si se perdió)
+  const s = load('elementa.streak', null);
+  return s && (s.day === todayKey() || s.day === yesterdayKey()) ? s.n || 0 : 0;
+}
+function updateMenuStreak() { const n = streakNow(); $('menuStreak').textContent = n ? ' · 🔥 ' + n : ''; }
+function checkStreak() {
+  const s = load('elementa.streak', null), today = todayKey();
+  if (s && s.day === today) { updateMenuStreak(); return; } // hoy ya se entregó
+  const n = s && s.day === yesterdayKey() ? (s.n || 0) + 1 : 1;
+  const coins = STREAK_COINS[Math.min(n, STREAK_COINS.length) - 1];
+  // primero se anota el día (así nunca se entrega dos veces) y después se suman las monedas
+  save('elementa.streak', { day: today, n });
+  if (load('elementa.streak', null) === null) return; // si el teléfono no deja guardar, no se regala en cada visita
+  const m = meta(); m.coins += coins; save('elementa.meta', m);
+  updateMenuCoins(); updateMenuStreak();
+  const at = Math.min(n, STREAK_COINS.length);
+  $('streakTitle').textContent = '🔥 Racha de ' + n + (n === 1 ? ' día' : ' días');
+  $('streakTrack').innerHTML = STREAK_COINS.map((c, i) => '<div class="' + (i + 1 === at ? 'now' : i + 1 < at ? 'got' : '') + '">' +
+    (i + 1 < at ? '✓' : i === STREAK_COINS.length - 1 ? '7+' : i + 1) + '<small>' + c + '</small></div>').join('');
+  $('streakCoins').innerHTML = '<span class="coin"></span> +' + coins + ' monedas';
+  $('streak').classList.add('show');
+}
 function dailyInfo() {
   // mismo desafío para todos los jugadores ese día (sale de la fecha)
   let s = 7;
@@ -3230,6 +3332,8 @@ $('btnAgain').addEventListener('click', () => { const lv = run.mode === 'level';
 $('btnRetry').addEventListener('click', () => start(player.type, { mode: 'level', map: run.map, lvl: run.lvl }));
 $('btnNext').addEventListener('click', () => { const n = nextLevel(); if (n) start(player.type, { mode: 'level', map: n.map, lvl: n.lvl }); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
+// al volver a la pestaña el teléfono ya soltó el permiso de pantalla encendida: se pide otra vez si sigues en partida
+document.addEventListener('visibilitychange', () => { if (!document.hidden && inRun()) wakeOn(); });
 
 // ---------- Bucle principal ----------
 // Solo dibuja mientras se juega; en menús la pantalla queda quieta (cero consumo).
@@ -3252,7 +3356,12 @@ function loop(ts) {
   if (last && lowPower && ts - last < 1000 / 30 - 3) return;
   const dt = last ? Math.min(0.05, (ts - last) / 1000) : 1 / 60;
   last = ts;
-  update(dt);
+  // golpe de efecto: el juego va más lento un instante (los contadores usan el tiempo real)
+  const slow = hitStop > 0;
+  if (slow) hitStop -= dt;
+  if (whiteT > 0) whiteT -= dt;
+  if (shakeT > 0) shakeT -= dt;
+  update(slow ? dt * 0.3 : dt);
   musicTick();
   if (state === 'play' || state === 'levelup') render();
   updateHud();
